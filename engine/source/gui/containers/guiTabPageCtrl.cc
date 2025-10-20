@@ -154,3 +154,25 @@ void GuiTabPageCtrl::parentResized(const Point2I& oldParentExtent, const Point2I
 {
 	//Do nothing. If the parent of a page resized then it will tell us what size to be later.
 }
+
+void GuiTabPageCtrl::resize(const Point2I& newPosition, const Point2I& newExtent)
+{
+	Point2I oldExtent = mBounds.extent;
+	bool extentChanged = (newExtent != oldExtent);
+
+	if (extentChanged)
+	{
+		mBounds.set(mBounds.point, newExtent);
+		iterator i;
+		for (i = begin(); i != end(); i++)
+		{
+			GuiControl* ctrl = static_cast<GuiControl*>(*i);
+			ctrl->parentResized(oldExtent - (ctrl->mRenderInsetLT + ctrl->mRenderInsetRB), newExtent - (ctrl->mRenderInsetLT + ctrl->mRenderInsetRB));
+		}
+
+		if (isMethod("onResize"))
+		{
+			Con::executef(this, 2, "onResize");
+		}
+	}
+}
