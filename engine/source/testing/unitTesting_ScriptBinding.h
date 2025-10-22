@@ -55,7 +55,7 @@ ConsoleFunctionWithDocs( runAllUnitTests, S32, 1, 1, () )
     Con::printf( "Unit Tests Starting..." );
     Con::printBlankLine();
 
-    const S32 result RUN_ALL_TESTS();
+    const S32 result = RUN_ALL_TESTS();
 
     Con::printBlankLine();
     Con::printf( "... Unit Tests Ended." );

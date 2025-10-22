@@ -31,52 +31,56 @@
 #include "testing/unitTesting.h"
 #endif
 
-#include "src/gtest.cc"
+// Include GoogleTest source files - updated for latest GoogleTest version
+#include "src/gtest-assertion-result.cc"
 #include "src/gtest-death-test.cc"
 #include "src/gtest-filepath.cc"
+#include "src/gtest-matchers.cc"
 #include "src/gtest-port.cc"
 #include "src/gtest-printers.cc"
 #include "src/gtest-test-part.cc"
 #include "src/gtest-typed-test.cc"
+#include "src/gtest.cc"
 //-----------------------------------------------------------------------------
 
 class TorqueUnitTestListener : public ::testing::EmptyTestEventListener
 {
-    // Called before a test starts.
-    virtual void OnTestStart( const ::testing::TestInfo& testInfo )
-    {
-        Con::printf("> Starting Test '%s.%s'",
-                testInfo.test_case_name(), testInfo.name());
-    }
+	// Called before a test starts.
+	void OnTestStart( const ::testing::TestInfo& testInfo ) override
+	{
+		Con::printf("> Starting Test '%s.%s'",
+				testInfo.test_suite_name(), testInfo.name()); 
+	}
 
-    // Called after a failed assertion or a SUCCEED() invocation.
-    virtual void OnTestPartResult( const ::testing::TestPartResult& testPartResult )
-    {
-        if ( testPartResult.failed() )
-        {
-            Con::warnf(">> Failed with '%s' in '%s' at (line:%d)",
-                    testPartResult.summary(),
-                    testPartResult.file_name(),
-                    testPartResult.line_number()
-                    );
-        }
-        else
-        {
-            Con::printf(">> Passed with '%s' in '%s' at (line:%d)",
-                    testPartResult.summary(),
-                    testPartResult.file_name(),
-                    testPartResult.line_number()
-                    );
-        }
-    }
+	// Called after a failed assertion or a SUCCEED() invocation.
+	void OnTestPartResult( const ::testing::TestPartResult& testPartResult ) override
+	{
+		if ( testPartResult.failed() )
+		{
+			Con::warnf(">> Failed with '%s' in '%s' at (line:%d)",
+					testPartResult.summary(),
+					testPartResult.file_name(),
+					testPartResult.line_number()
+					);
+		}
+		else if (testPartResult.passed())
+		{
+			Con::printf(">> Test successful!");
+		}
+		else
+		{
+			Con::printf(">> Test part result of unknown type in '%s' at (line:%d)",
+					testPartResult.file_name(),
+					testPartResult.line_number()
+			);
+		}
+	}
 
-    // Called after a test ends.
-    virtual void OnTestEnd( const ::testing::TestInfo& testInfo )
-    {
-        Con::printf("> Ending Test '%s.%s'",
-                testInfo.test_case_name(), testInfo.name());
-        Con::printBlankLine();
-    }
+	// Called after a test ends.
+	void OnTestEnd( const ::testing::TestInfo& testInfo ) override
+	{
+		Con::printBlankLine();
+	}
 };
 
 #include "unitTesting_ScriptBinding.h"

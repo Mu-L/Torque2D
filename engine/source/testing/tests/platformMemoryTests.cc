@@ -52,6 +52,8 @@ TEST( PlatformMemoryTests, dMallocrAnddFreeTest )
 
     // Free memory (ensure no exceptions).
     dFree( pResult );
+    
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -78,6 +80,8 @@ TEST( PlatformMemoryTests, dReallocrAnddFreeTest )
 
     // Free memory (ensure no exceptions).
     dFree( pResult );
+    
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -99,6 +103,8 @@ TEST( PlatformMemoryTests, dMemcpyTest )
         ASSERT_EQ( index, source[index] ) << "Source memory value is incorrect.";
         ASSERT_EQ( index, destination[index] ) << "Destination memory value is incorrect.";
     }
+    
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -118,6 +124,8 @@ TEST( PlatformMemoryTests, dMemmoveTest )
     {
         ASSERT_EQ( index+1, destination[index] ) << "Destination memory value is incorrect.";
     }
+    
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -142,6 +150,8 @@ TEST( PlatformMemoryTests, dMemsetTest )
 
     // Check.
     ASSERT_EQ( 9, destination[sizeof(destination)-1] ) << "Destination memory value is incorrect.";
+    
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -163,6 +173,8 @@ TEST( PlatformMemoryTests, dMemcmpTest )
     ASSERT_LT( 0, result1 ) << "Memory compare is incorrect.";
     ASSERT_EQ( 0, result2 ) << "Memory compare is incorrect.";
     ASSERT_GT( 0, result3 ) << "Memory compare is incorrect.";
+    
+    SUCCEED();
 }
 
 #endif // TORQUE_SHIPPING
