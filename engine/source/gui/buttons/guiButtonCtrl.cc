@@ -40,26 +40,15 @@ GuiButtonCtrl::GuiButtonCtrl()
 	mBounds.extent.set(140, 30);
 	mText = StringTable->insert("Button");
 	mTextID = StringTable->EmptyString;
+	mProfile = NULL;
+	mIsContainer = false;
 
-	//fill color
-	mEaseFillColorHL = EasingFunction::Linear;
-	mEaseFillColorSL = EasingFunction::Linear;
-	mEaseTimeFillColorHL = 500;
-	mEaseTimeFillColorSL = 0;
-
-	//control state
-	mPreviousState = GuiControlState::DisabledState;
-	mCurrentState = GuiControlState::DisabledState;
+	setField("profile", "GuiButtonProfile");
 }
 
 void GuiButtonCtrl::initPersistFields()
 {
 	Parent::initPersistFields();
-
-	addField("easeFillColorHL", TypeEnum, Offset(mEaseFillColorHL, GuiButtonCtrl), 1, &gEasingTable);
-	addField("easeFillColorSL", TypeEnum, Offset(mEaseFillColorSL, GuiButtonCtrl), 1, &gEasingTable);
-	addField("easeTimeFillColorHL", TypeS32, Offset(mEaseTimeFillColorHL, GuiButtonCtrl));
-	addField("easeTimeFillColorSL", TypeS32, Offset(mEaseTimeFillColorSL, GuiButtonCtrl));
 }
 
 void GuiButtonCtrl::setActive(bool value)
@@ -116,11 +105,6 @@ void GuiButtonCtrl::onTouchEnter(const GuiEvent &event)
 	{
 		mDepressed = true;
 	}
-	else if (mActive && mProfile->mSoundButtonOver)
-	{
-		AUDIOHANDLE handle = alxCreateSource(mProfile->mSoundButtonOver);
-		alxPlay(handle);
-	}
 
 	Con::executef(this, 1, "onTouchEnter");
 
@@ -154,12 +138,6 @@ void GuiButtonCtrl::onTouchDown(const GuiEvent &event)
 
 	if (mProfile->mCanKeyFocus)
 		setFirstResponder();
-
-	if (mProfile->mSoundButtonDown)
-	{
-		AUDIOHANDLE handle = alxCreateSource(mProfile->mSoundButtonDown);
-		alxPlay(handle);
-	}
 
 	//lock the mouse
 	mouseLock();
@@ -218,11 +196,7 @@ bool GuiButtonCtrl::onKeyDown(const GuiEvent &event)
 	if ((event.keyCode == KEY_RETURN || event.keyCode == KEY_SPACE)
 		&& event.modifier == 0)
 	{
-		if (mProfile->mSoundButtonDown)
-		{
-			AUDIOHANDLE handle = alxCreateSource(mProfile->mSoundButtonDown);
-			alxPlay(handle);
-		}
+		mDepressed = true;
 		return true;
 	}
 	//otherwise, pass the event to it's parent
@@ -239,6 +213,7 @@ bool GuiButtonCtrl::onKeyUp(const GuiEvent &event)
 		(event.keyCode == KEY_RETURN || event.keyCode == KEY_SPACE) &&
 		event.modifier == 0)
 	{
+		mDepressed = false;
 		onAction();
 		return true;
 	}
@@ -298,7 +273,8 @@ void GuiButtonCtrl::onRender(Point2I offset, const RectI& updateRect)
 	renderText(contentRect.point, contentRect.extent, mText, mProfile);
 
 	//Render the childen
-	renderChildControls(offset, contentRect, updateRect);
+	if(size() > 0)
+		renderChildControls(offset, contentRect, updateRect);
 }
 
 void GuiButtonCtrl::setScriptValue(const char *value)
@@ -318,67 +294,4 @@ const char *GuiButtonCtrl::getScriptValue()
 void GuiButtonCtrl::onMessage(GuiControl *sender, S32 msg)
 {
 	Parent::onMessage(sender, msg);
-}
-
-const ColorI& GuiButtonCtrl::getFillColor(const GuiControlState state)
-{
-	if (state != mCurrentState)
-	{
-		//We have just switched states!
-		mPreviousState = mCurrentState;
-		mCurrentState = state;
-		if (mCurrentState == GuiControlState::DisabledState || mPreviousState == GuiControlState::DisabledState)
-		{
-			mFluidFillColor.stopFluidAnimation();
-			mFluidFillColor.set(mProfile->getFillColor(state));
-		}
-		else if (mCurrentState == GuiControlState::SelectedState || mPreviousState == GuiControlState::SelectedState)
-		{
-			mFluidFillColor.setEasingFunction(mEaseFillColorSL);
-			mFluidFillColor.setAnimationLength(mEaseTimeFillColorSL);
-			mFluidFillColor.startFluidAnimation(mProfile->getFillColor(state));
-		}
-		else if (mCurrentState == GuiControlState::HighlightState || mPreviousState == GuiControlState::HighlightState)
-		{
-			mFluidFillColor.setEasingFunction(mEaseFillColorHL);
-			mFluidFillColor.setAnimationLength(mEaseTimeFillColorHL);
-			mFluidFillColor.startFluidAnimation(mProfile->getFillColor(state));
-		}
-		else
-		{
-			//we should never get here...
-			mFluidFillColor.stopFluidAnimation();
-			mFluidFillColor.set(mProfile->getFillColor(state));
-		}
-	}
-
-	if (mFluidFillColor.isAnimating() && !isProcessingTicks())
-	{
-		setProcessTicks(true);
-	}
-
-	if (!mFluidFillColor.isAnimating())
-	{
-		mFluidFillColor.set(mProfile->getFillColor(state));
-	}
-
-	return mFluidFillColor;
-}
-
-void GuiButtonCtrl::processTick()
-{
-	bool shouldWeContinue = false;
-
-	shouldWeContinue |= mFluidFillColor.processTick();
-
-	if (!shouldWeContinue)
-	{
-		setProcessTicks(false);
-	}
-}
-
-void GuiButtonCtrl::setControlProfile(GuiControlProfile *prof)
-{
-	Parent::setControlProfile(prof);
-	mCurrentState = mCurrentState == DisabledState ? NormalState : DisabledState;
 }

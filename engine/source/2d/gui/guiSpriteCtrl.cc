@@ -90,14 +90,14 @@ void GuiSpriteCtrl::initPersistFields()
     addProtectedField("NamedFrame", TypeString, Offset(mNamedImageFrameId, GuiSpriteCtrl), &setNamedImageFrame, &defaultProtectedGetFn, &writeNamedImageFrame, "The named image frame used for the image.");
     addProtectedField("Animation", TypeAssetId, Offset(mAnimationAssetId, GuiSpriteCtrl), &setAnimation, &defaultProtectedGetFn, &writeAnimation, "The animation to use.");
 	addProtectedField("Bitmap", TypeFilename, Offset(mBitmapName, GuiSpriteCtrl), &setBitmapName, &getBitmapName, &writeBitmapName, "The bitmap to use in absence of an asset.");
-	addProtectedField("singleFrameBitmap", TypeBool, Offset(mSingleFrameBitmap, GuiSpriteCtrl), &defaultProtectedSetFn, &defaultProtectedGetFn, &writeBitmapName, "If true, will assume there is a single frame when scanning the bitmap.");
-	addField("tileImage", TypeBool, Offset(mTileImage, GuiSpriteCtrl));
-	addField("positionOffset", TypePoint2I, Offset(mPositionOffset, GuiSpriteCtrl));
-	addField("imageColor", TypeFluidColorI, Offset(mImageColor, GuiSpriteCtrl));
-	addField("imageSize", TypePoint2I, Offset(mImageSize, GuiSpriteCtrl));
-	addField("fullSize", TypeBool, Offset(mFullSize, GuiSpriteCtrl));
-	addField("clampImage", TypeBool, Offset(mClampImage, GuiSpriteCtrl));
-	addField("constrainProportions", TypeBool, Offset(mConstrainProportions, GuiSpriteCtrl));
+	addProtectedField("singleFrameBitmap", TypeBool, Offset(mSingleFrameBitmap, GuiSpriteCtrl), &defaultProtectedSetFn, &defaultProtectedGetFn, &writeSingleFrameBitmap, "If true, will assume there is a single frame when scanning the bitmap.");
+	addField("tileImage", TypeBool, Offset(mTileImage, GuiSpriteCtrl), &writeTileImage);
+	addField("positionOffset", TypePoint2I, Offset(mPositionOffset, GuiSpriteCtrl), &writePositionOffset);
+	addField("imageColor", TypeFluidColorI, Offset(mImageColor, GuiSpriteCtrl), &writeImageColor);
+	addField("imageSize", TypePoint2I, Offset(mImageSize, GuiSpriteCtrl), &writeImageSize);
+	addField("fullSize", TypeBool, Offset(mFullSize, GuiSpriteCtrl), &writeFullSize);
+	addField("clampImage", TypeBool, Offset(mClampImage, GuiSpriteCtrl), &writeClampImage);
+	addField("constrainProportions", TypeBool, Offset(mConstrainProportions, GuiSpriteCtrl), &writeConstrainProportions);
 	endGroup("GuiSpriteCtrl");
 }
 
@@ -652,7 +652,7 @@ void GuiSpriteCtrl::RenderTiledImage(RectI &bounds, Point2I &start, Point2I &siz
 	{
 		for (int x = 0; x < xdone; ++x)
 		{
-			dstRegion.set((size.x * x) + start.x, (size.y * y) + start.y, size.x, size.y);
+			dstRegion.set((size.x * x) + start.x + bounds.point.x, (size.y * y) + start.y + bounds.point.y, size.x, size.y);
 			dglDrawBitmapStretchSR(texture, dstRegion, srcRegion, false);
 		}
 	}

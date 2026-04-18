@@ -165,11 +165,8 @@ void renderBorderedRect(RectI &bounds, GuiControlProfile *profile, GuiControlSta
 	}
 }
 
-void renderBorderedCircle(Point2I &center, S32 radius, GuiControlProfile *profile, GuiControlState state)
+void renderBorderedCircle(Point2I& center, S32 radius, GuiControlProfile* profile, GuiControlState state = NormalState)
 {
-	//Get the border profiles
-	GuiBorderProfile *borderProfile = profile->mBorderDefault;
-
 	//Get the colors
 	ColorI fillColor = profile->getFillColor(state);
 	ColorI borderColor = (profile->mBorderDefault) ? profile->mBorderDefault->getBorderColor(state) : ColorI();
@@ -180,11 +177,47 @@ void renderBorderedCircle(Point2I &center, S32 radius, GuiControlProfile *profil
 	dglDrawCircleFill(center, (F32)fillRadius, fillColor);
 
 	//Draw the border
-	dglDrawCircle(center, (F32)radius, borderColor, (F32)borderSize);
+	renderRing(center, (F32)radius, borderColor, (F32)borderSize);
 
 	if (state > 3 && radius >= 8)
 	{
 		dglDrawCircleFill(center, radius - 6, profile->getFillColor(GuiControlState::SelectedState));
+	}
+}
+
+void renderBorderedRing(Point2I& center, S32 outerRadius, S32 innerRadius, GuiControlProfile* profile, GuiControlState state = NormalState)
+{
+	if (innerRadius <= 0)
+	{
+		renderBorderedCircle(center, outerRadius, profile, state);
+		return;
+	}
+	
+	//Get the colors
+	ColorI fillColor = profile->getFillColor(state);
+	ColorI borderColor = (profile->mBorderDefault) ? profile->mBorderDefault->getBorderColor(state) : ColorI();
+	S32 borderSize = (profile->mBorderDefault) ? profile->mBorderDefault->getBorder(state) : 0;
+
+	//Draw the fill
+	S32 fillRadius = (profile->mBorderDefault && profile->mBorderDefault->mUnderfill) ? outerRadius : outerRadius - borderSize;
+	renderRing(center, (F32)fillRadius, fillColor, (F32)(outerRadius - innerRadius));
+
+	//Draw the border
+	renderRing(center, (F32)outerRadius, borderColor, (F32)borderSize);
+}
+
+void renderRing(const Point2I& center, const F32 radius, const ColorI& color, F32 borderSize)
+{
+	for (S32 i = 0; i < borderSize; i++)
+	{
+		if(i < (borderSize - 1))
+		{
+			dglDrawCircle(center, radius - i, color, 2);
+		}
+		else
+		{
+			dglDrawCircle(center, radius - i, color, 1);
+		}
 	}
 }
 
@@ -241,57 +274,66 @@ void renderSizableBorderedBitmap(RectI &bounds, U8 frame, TextureHandle &texture
 
 void renderSizableBorderedTexture(RectI &bounds, TextureHandle &texture, RectI &TopLeft, RectI &Top, RectI &TopRight, RectI &Left, RectI &Fill, RectI &Right, RectI &BottomLeft, RectI &Bottom, RectI &BottomRight)
 {
-	dglClearBitmapModulation();
-	RectI destRect;
-	RectI stretchRect;
+	RectI oldClip = dglGetClipRect();
+	RectI newClip = RectI(bounds);
+	if (newClip.intersect(oldClip))
+	{
+		dglSetClipRect(newClip);
 
-	//top corners
-	dglDrawBitmapSR(texture, bounds.point, TopLeft);
-	dglDrawBitmapSR(texture, Point2I(bounds.point.x + bounds.extent.x - TopRight.extent.x, bounds.point.y), TopRight);
+		dglClearBitmapModulation();
+		RectI destRect;
+		RectI stretchRect;
 
-	//bottom corners
-	dglDrawBitmapSR(texture, Point2I(bounds.point.x, bounds.point.y + bounds.extent.y - BottomLeft.extent.y), BottomLeft);
-	dglDrawBitmapSR(texture, Point2I(bounds.point.x + bounds.extent.x - BottomRight.extent.x, bounds.point.y + bounds.extent.y - BottomRight.extent.y), BottomRight);
+		//top corners
+		dglDrawBitmapSR(texture, bounds.point, TopLeft);
+		dglDrawBitmapSR(texture, Point2I(bounds.point.x + bounds.extent.x - TopRight.extent.x, bounds.point.y), TopRight);
 
-	//top line stretch
-	destRect.point.x = bounds.point.x + TopLeft.extent.x;
-	destRect.extent.x = bounds.extent.x - TopRight.extent.x - TopLeft.extent.x;
-	destRect.extent.y = Top.extent.y;
-	destRect.point.y = bounds.point.y;
-	stretchRect = Top;
-	dglDrawBitmapStretchSR(texture, destRect, stretchRect);
+		//bottom corners
+		dglDrawBitmapSR(texture, Point2I(bounds.point.x, bounds.point.y + bounds.extent.y - BottomLeft.extent.y), BottomLeft);
+		dglDrawBitmapSR(texture, Point2I(bounds.point.x + bounds.extent.x - BottomRight.extent.x, bounds.point.y + bounds.extent.y - BottomRight.extent.y), BottomRight);
 
-	//bottom line stretch
-	destRect.point.x = bounds.point.x + BottomLeft.extent.x;
-	destRect.extent.x = bounds.extent.x - BottomRight.extent.x - BottomLeft.extent.x;
-	destRect.extent.y = Bottom.extent.y;
-	destRect.point.y = bounds.point.y + bounds.extent.y - Bottom.extent.y;
-	stretchRect = Bottom;
-	dglDrawBitmapStretchSR(texture, destRect, stretchRect);
+		//top line stretch
+		destRect.point.x = bounds.point.x + TopLeft.extent.x;
+		destRect.extent.x = bounds.extent.x - TopRight.extent.x - TopLeft.extent.x;
+		destRect.extent.y = Top.extent.y;
+		destRect.point.y = bounds.point.y;
+		stretchRect = Top;
+		dglDrawBitmapStretchSR(texture, destRect, stretchRect);
 
-	//left line stretch
-	destRect.point.x = bounds.point.x;
-	destRect.extent.x = Left.extent.x;
-	destRect.extent.y = bounds.extent.y - TopLeft.extent.y - BottomLeft.extent.y;
-	destRect.point.y = bounds.point.y + TopLeft.extent.y;
-	stretchRect = Left;
-	dglDrawBitmapStretchSR(texture, destRect, stretchRect);
+		//bottom line stretch
+		destRect.point.x = bounds.point.x + BottomLeft.extent.x;
+		destRect.extent.x = bounds.extent.x - BottomRight.extent.x - BottomLeft.extent.x;
+		destRect.extent.y = Bottom.extent.y;
+		destRect.point.y = bounds.point.y + bounds.extent.y - Bottom.extent.y;
+		stretchRect = Bottom;
+		dglDrawBitmapStretchSR(texture, destRect, stretchRect);
 
-	//right line stretch
-	destRect.point.x = bounds.point.x + bounds.extent.x - Right.extent.x;
-	destRect.extent.x = Right.extent.x;
-	destRect.extent.y = bounds.extent.y - TopRight.extent.y - BottomRight.extent.y;
-	destRect.point.y = bounds.point.y + TopRight.extent.y;
-	stretchRect = Right;
-	dglDrawBitmapStretchSR(texture, destRect, stretchRect);
+		//left line stretch
+		destRect.point.x = bounds.point.x;
+		destRect.extent.x = Left.extent.x;
+		destRect.extent.y = bounds.extent.y - TopLeft.extent.y - BottomLeft.extent.y;
+		destRect.point.y = bounds.point.y + TopLeft.extent.y;
+		stretchRect = Left;
+		dglDrawBitmapStretchSR(texture, destRect, stretchRect);
 
-	//fill stretch
-	destRect.point.x = bounds.point.x + Left.extent.x;
-	destRect.extent.x = (bounds.extent.x) - Left.extent.x - Right.extent.x;
-	destRect.extent.y = bounds.extent.y - Top.extent.y - Bottom.extent.y;
-	destRect.point.y = bounds.point.y + Top.extent.y;
-	stretchRect = Fill;
-	dglDrawBitmapStretchSR(texture, destRect, stretchRect);
+		//right line stretch
+		destRect.point.x = bounds.point.x + bounds.extent.x - Right.extent.x;
+		destRect.extent.x = Right.extent.x;
+		destRect.extent.y = bounds.extent.y - TopRight.extent.y - BottomRight.extent.y;
+		destRect.point.y = bounds.point.y + TopRight.extent.y;
+		stretchRect = Right;
+		dglDrawBitmapStretchSR(texture, destRect, stretchRect);
+
+		//fill stretch
+		destRect.point.x = bounds.point.x + Left.extent.x;
+		destRect.extent.x = (bounds.extent.x) - Left.extent.x - Right.extent.x;
+		destRect.extent.y = bounds.extent.y - Top.extent.y - Bottom.extent.y;
+		destRect.point.y = bounds.point.y + Top.extent.y;
+		stretchRect = Fill;
+		dglDrawBitmapStretchSR(texture, destRect, stretchRect);
+
+		dglSetClipRect(oldClip);
+	}
 }
 
 // Renders out the fixed bitmap borders based on a multiplier into the bitmap array.

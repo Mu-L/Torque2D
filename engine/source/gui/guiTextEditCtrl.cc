@@ -395,6 +395,8 @@ GuiTextEditCtrl::GuiTextEditCtrl()
    mSuspendVerticalScrollJump = false;
    mTextBlockList = TextBlockList();
    mScrollVelocity = 0;
+   mIsContainer = false;
+   mBounds.extent.set(220, 30);
 }
 
 static EnumTable::Enums inputModeEnums[] =
@@ -420,9 +422,9 @@ void GuiTextEditCtrl::initPersistFields()
    addGroup("Text Edit");
    addField("returnCommand", TypeString, Offset(mReturnCommand, GuiTextEditCtrl));
    addField("escapeCommand", TypeString, Offset(mEscapeCommand, GuiTextEditCtrl));
-   addField("sinkAllKeyEvents",  TypeBool,      Offset(mSinkAllKeyEvents,  GuiTextEditCtrl));
-   addField("password", TypeBool, Offset(mPasswordText, GuiTextEditCtrl));
-   addField("returnCausesTab", TypeBool, Offset(mReturnCausesTab, GuiTextEditCtrl));
+   addField("sinkAllKeyEvents",  TypeBool,      Offset(mSinkAllKeyEvents,  GuiTextEditCtrl), &writeSinkAllKeyEventsFn);
+   addField("password", TypeBool, Offset(mPasswordText, GuiTextEditCtrl), &writePasswordFn);
+   addField("returnCausesTab", TypeBool, Offset(mReturnCausesTab, GuiTextEditCtrl), &writeReturnCausesTabFn);
    addProtectedField("maxLength", TypeS32,		Offset(mMaxStrLen,			GuiTextEditCtrl), &setMaxLengthProperty, &defaultProtectedGetFn, "The max number of characters that can be entered into the text edit box.");
    addProtectedField("inputMode", TypeEnum,		Offset(mInputMode,			GuiTextEditCtrl), &setInputMode, &getInputMode, &writeInputMode, 1, &gInputModeTable, "InputMode allows different characters to be entered.");
    addField("editCursor", TypeGuiCursor, Offset(mEditCursor, GuiTextEditCtrl));
@@ -579,9 +581,7 @@ bool GuiTextEditCtrl::validate()
 
 const RectI GuiTextEditCtrl::getGlobalInnerRect()
 {
-    Point2I offset = Point2I(mBounds.point.Zero);
-    Point2I extent = Point2I(getExtent());
-    RectI innerRect = getInnerRect(offset, extent, SelectedState, mProfile);
+    RectI innerRect = getInnerRect(SelectedState);
 
     Point2I globalCtrlOffset = localToGlobalCoord(innerRect.point);
     RectI globalInnerRect(globalCtrlOffset, innerRect.extent);
@@ -647,16 +647,16 @@ void GuiTextEditCtrl::onTouchDown( const GuiEvent &event )
     if (!mVisible || !mAwake)
         return;
 
+   mouseLock();
+   setFirstResponder();
+   mSelector.resetCursorBlink();
+
     mSelector.setTextLength(mTextBuffer.length());
-   if(event.mouseClickCount > 2)
-   {
-        selectAllText();
-   } 
-   else if(event.mouseClickCount > 1)
+   if(event.mouseClickCount == 2)
    {
        mSelector.selectWholeWord(mTextBuffer);
    }
-   else 
+   else if (event.mouseClickCount < 2)
    {
        S32 newCursorPos = calculateIbeamPosition(event.mousePoint);
        if (event.modifier & SI_SHIFT)
@@ -668,10 +668,6 @@ void GuiTextEditCtrl::onTouchDown( const GuiEvent &event )
            mSelector.setCursorPosition(newCursorPos);
        }
    }
-
-   mouseLock();
-   setFirstResponder();
-   mSelector.resetCursorBlink();
     if( isMethod("onTouchDown") )
     {
         char buf[3][32];
@@ -944,8 +940,25 @@ bool GuiTextEditCtrl::tabPrev()
 	return false;
 }
 
+void GuiTextEditCtrl::onFocus(bool foundFirstResponder)
+{
+	Parent::onFocus(foundFirstResponder);
+
+	mTextOnFocus = mText;
+}
+
 void GuiTextEditCtrl::setFirstResponder()
 {
+	if(!isFirstResponder())
+	{
+		mTextOnFocus = mText;
+	}
+
+	selectAllText();
+	if(mTextBuffer.length() == 0)
+	{
+		mSelector.selectTo(mTextBuffer.length());
+	}
     mSelector.setFirstResponder(true);
    Parent::setFirstResponder();
    
@@ -968,6 +981,8 @@ void GuiTextEditCtrl::onLoseFirstResponder()
 
    if( isMethod( "onLoseFirstResponder" ) )
       Con::executef( this, 2, "onLoseFirstResponder", valid);
+   if (isMethod("onBlur"))
+	   Con::executef(this, 2, "onBlur", valid);
 
     mSelector.setFirstResponder(false);
     mTextOffsetY = 0;
@@ -1429,12 +1444,7 @@ bool GuiTextEditCtrl::handleKeyDownWithNoModifier(const GuiEvent& event)
         return tabNext();
 
     case KEY_ESCAPE:
-        if (mEscapeCommand && mEscapeCommand[0])
-        {
-            Con::evaluate(mEscapeCommand);
-            return true;
-        }
-        return false;
+        return handleEscapeKey();
 
     case KEY_RETURN:
     case KEY_NUMPADENTER:
@@ -1567,21 +1577,54 @@ bool GuiTextEditCtrl::handleDelete()
     return true;
 }
 
+bool GuiTextEditCtrl::handleEscapeKey()
+{
+	if(isMethod("onEscape"))
+		Con::executef(this, 1, "onEscape");
+
+	bool preventDefault = false;
+	if (mEscapeCommand && mEscapeCommand[0])
+	{
+		preventDefault = Con::evaluate(mEscapeCommand);
+	}
+	
+	if(!preventDefault)
+	{
+		setText(mTextOnFocus);
+		GuiControl* parent = getParent();
+		if (parent)
+		{
+			parent->onFocus(false);
+		}
+	}
+
+	return true;
+}
+
 bool GuiTextEditCtrl::handleEnterKey()
 {
     if (isMethod("onReturn"))
         Con::executef(this, 1, "onReturn");
 
-    if (mReturnCausesTab)
+    bool preventDefault = false;
+    if (mReturnCommand && mReturnCommand[0])
+    {
+        preventDefault = Con::evaluate(mReturnCommand);
+    }
+
+	if (mReturnCausesTab)
     {
         tabNext();
     }
+	else if (!preventDefault)
+	{
+		GuiControl* parent = getParent();
+		if (parent)
+		{
+			parent->onFocus(false);
+		}
+	}
 
-    
-    if (mReturnCommand && mReturnCommand[0])
-    {
-        Con::evaluate(mReturnCommand);
-    }
     return true;
 }
 
@@ -1635,12 +1678,20 @@ bool GuiTextEditCtrl::handleShiftArrowKey(GuiDirection direction)
     else if (direction == GuiDirection::Up)
     {
         S32 newCursorPos = getLineAdjustedIbeamPosition(-mProfile->getFont(mFontSizeAdjust)->getHeight());
-        modifySelectBlock(newCursorPos);
+		if (newCursorPos == mSelector.getCursorPos())
+		{
+			newCursorPos = 0;
+		}
+		modifySelectBlock(newCursorPos);
     }
     else if (direction == GuiDirection::Down)
     {
         S32 newCursorPos = getLineAdjustedIbeamPosition(mProfile->getFont(mFontSizeAdjust)->getHeight());
-        modifySelectBlock(newCursorPos);
+		if (newCursorPos == mSelector.getCursorPos())
+		{
+			newCursorPos = mTextBuffer.length();
+		}
+		modifySelectBlock(newCursorPos);
     }
     setUpdate();
     mSelector.resetCursorBlink();

@@ -433,16 +433,6 @@ ConsoleFunctionWithDocs(exec, ConsoleBool, 2, 4, ( fileName, [nocalls]?, [journa
          rScr->getFileTimes(NULL, &scrModifyTime);
    }
 
-   // Let's do a sanity check to complain about DSOs in the future.
-   //
-   // MM:	This doesn't seem to be working correctly for now so let's just not issue
-   //		the warning until someone knows how to resolve it.
-   //
-   //if(compiled && rCom && rScr && Platform::compareFileTimes(comModifyTime, scrModifyTime) < 0)
-   //{
-   //Con::warnf("exec: Warning! Found a DSO from the future! (%s)", nameBuffer);
-   //}
-
     // If we had a DSO, let's check to see if we should be reading from it.
     if((compiled && rCom) && (!rScr || Platform::compareFileTimes(comModifyTime, scrModifyTime) >= 0))
     {
@@ -739,6 +729,18 @@ ConsoleFunctionWithDocs(trace, ConsoleVoid, 2, 2, ( enable ))
    TORQUE_UNUSED( argc );
    gEvalState.traceOn = dAtob(argv[1]);
    Con::printf("Console trace is %s", gEvalState.traceOn ? "on." : "off.");
+}
+
+//----------------------------------------------------------------
+
+/*! Use the trace function to enable (or disable) function call tracing. If enabled, tracing will print a message every time a function is entered, showing what arguments it received, and it will print a message every time a function is exited, showing the return value (or last value of last statement) for that function.
+	@param enable A boolean value. If set to true, tracing is enabled, otherwise it is disabled.
+	@return No return value
+*/
+ConsoleFunctionWithDocs(editorMode, ConsoleVoid, 2, 2, (enable))
+{
+	TORQUE_UNUSED(argc);
+	gEvalState.editorModeOn = dAtob(argv[1]);
 }
 
 //----------------------------------------------------------------

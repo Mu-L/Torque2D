@@ -103,6 +103,10 @@ class GuiWindowCtrl : public GuiControl
 
 	   bool mDepressed;
 	   Region curHitRegion;
+	   bool mPageDocked; //True when docked in a GuiTabPageCtrl. 
+	   void dockToPage();
+	   void undockFromPage();
+	   S32 getTitleHeight() { return mTitleHeight; }
 
 	   Region findHitRegion(const Point2I &);
 	   GuiControlState getRegionCurrentState(GuiWindowCtrl::Region region);
@@ -120,6 +124,7 @@ class GuiWindowCtrl : public GuiControl
 
       GuiControl* findHitControl(const Point2I &pt, S32 initialLayer = -1);
       void resize(const Point2I &newPosition, const Point2I &newExtent);
+	  void restore();
 
 	  void onTouchMove(const GuiEvent &event);
       void onTouchDown(const GuiEvent &event);
@@ -127,7 +132,7 @@ class GuiWindowCtrl : public GuiControl
       void onTouchUp(const GuiEvent &event);
 	  void onTouchLeave(const GuiEvent &event);
 
-	  virtual void onFocus();
+	  virtual void onFocus(bool foundFirstResponder);
 
       //only cycle tabs through the current window, so overwrite the method
       GuiControl* findNextTabable(GuiControl *curResponder, bool firstCall = true);
@@ -141,6 +146,7 @@ class GuiWindowCtrl : public GuiControl
       void onRender(Point2I offset, const RectI &updateRect);
 	  RectI renderButtons(const Point2I &offset, const RectI &contentRect);
 	  RectI renderButton(const RectI &contentRect, S32 distanceFromEdge, GuiControlState buttonState, GuiControlProfile *profile, Icon defaultIcon);
+	  RectI getInnerRect(Point2I& offset, Point2I& extent, GuiControlState currentState, GuiControlProfile* profile);
 
 	  void setControlContentProfile(GuiControlProfile* prof);
 	  void setControlCloseButtonProfile(GuiControlProfile* prof);

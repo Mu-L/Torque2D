@@ -33,7 +33,6 @@ class GuiTabPageCtrl : public GuiControl
    public:
       GuiTabPageCtrl();
       DECLARE_CONOBJECT(GuiTabPageCtrl);
-      bool onMouseDownEditor(const GuiEvent &event, Point2I offset );   ///< Called when a mouseDown event occurs and the GUI editor is active
 
       S32 getTabIndex(void) { return mTabIndex; }  ///< Get the tab index of this control
 
@@ -45,6 +44,8 @@ class GuiTabPageCtrl : public GuiControl
 
       virtual void setText(const char *txt = NULL); ///< Override setText function to signal parent we need to update.
 	  void onRender(Point2I offset, const RectI &updateRect);
+	  void parentResized(const Point2I& oldParentExtent, const Point2I& newParentExtent);
+	  void resize(const Point2I& newPosition, const Point2I& newExtent);
 };
 
 #endif //_GUITABPAGECTRL_H_

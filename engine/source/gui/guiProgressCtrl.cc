@@ -37,6 +37,8 @@ GuiProgressCtrl::GuiProgressCtrl()
    mCurrent = 0.0f;
    mStart = 0.0f;
    mEnd = 0.0f;
+   mRendersChildren = false;
+   mIsContainer = false;
 
    setAnimationLength(250);
    setEasingFunction(EaseInOut);
@@ -75,10 +77,20 @@ void GuiProgressCtrl::setCurrentProgress(F32 target)
 
 void GuiProgressCtrl::setCurrentProgress(F32 target, S32 time)
 {
-	mAnimationLength = time;
-
    //validate the value
    target = mClampF(target, 0.f, 1.f);
+
+   if (time == 0)
+   {
+	   mCurrent = target;
+	   setProcessTicks(false);
+	   F32 old = mCurrent;
+	   
+	   if (isMethod("onDisplayChange") && old != mCurrent)
+		   Con::executef(this, 2, "onDisplayChange", Con::getFloatArg(mCurrent));
+   }
+
+	mAnimationLength = time;
 
    if (target != mCurrent)
    {
@@ -93,7 +105,14 @@ void GuiProgressCtrl::setCurrentProgress(F32 target, S32 time)
 
 void GuiProgressCtrl::resetProgress()
 {
-	setCurrentProgress(0.0f);
+	F32 old = mCurrent;
+	mCurrent = 0.0f;
+	setProcessTicks(false);
+
+	if (isMethod("onDisplayChange") && old != mCurrent)
+		Con::executef(this, 2, "onDisplayChange", Con::getFloatArg(mCurrent));
+
+	setUpdate();
 }
 
 void GuiProgressCtrl::onRender(Point2I offset, const RectI &updateRect)
@@ -139,6 +158,9 @@ void GuiProgressCtrl::processTick()
 	if (!shouldWeContinue)
 	{
 		setProcessTicks(false);
+
+		if (isMethod("onProgressComplete"))
+			Con::executef(this, 1, "onProgressComplete");
 	}
 }
 
@@ -147,7 +169,11 @@ bool GuiProgressCtrl::animateProgressBar()
 	F32 progress = getProgress(32.0f);
 
 	setUpdate();
+	F32 old = mCurrent;
 	mCurrent = processValue(progress, mStart, mEnd);
+
+	if (isMethod("onDisplayChange") && old != mCurrent)
+		Con::executef(this, 2, "onDisplayChange", Con::getFloatArg(mCurrent));
 
 	if (mAnimationProgress >= 1.0f)
 	{

@@ -130,16 +130,23 @@ public:
 
    GuiControlProfile *mProfile;
 
+   static const S32 DEFAULT_TOOLTIP_WIDTH = 250;
+   static const S32 DEFAULT_TOOLTIP_HOVERTIME = 1000;
+
     GuiControlProfile	*mTooltipProfile; 
     S32					mTipHoverTime;
     S32					mTooltipWidth;
+
+	static bool writeToolTipWidthFn(void* obj, const char* data) { GuiControl* ctrl = static_cast<GuiControl*>(obj); return ctrl->mTooltipWidth != DEFAULT_TOOLTIP_WIDTH; }
+	static bool writeToolTipHoverTimeFn(void* obj, const char* data) { GuiControl* ctrl = static_cast<GuiControl*>(obj); return ctrl->mTipHoverTime != DEFAULT_TOOLTIP_HOVERTIME; }
 
     bool    mVisible;
     bool    mActive;
     bool    mAwake;
     bool    mSetFirstResponder;
     bool    mCanSave;
-    bool    mIsContainer; ///< if true, then the GuiEditor can drag other controls into this one.
+    bool    mIsContainer; ///< True if the GuiEditor can drag other controls into this one.
+	bool    mRendersChildren; ///< True if the control renders children. If false, then the control cannot be a container. This is set by the class and cannot be changed by the user.
     bool    mUseInput; ///< True if input events like a click can be passed to this gui. False will pass events to the parent and this object and its children will not process input (touch and keyboard).
 
     S32     mLayer;
@@ -159,9 +166,12 @@ public:
     static GuiEditCtrl *smEditorHandle; ///< static GuiEditCtrl pointer that gives controls access to editor-NULL if editor is closed
     /// @}
 
+	virtual bool isEditMode();
+	virtual bool isEditSelected();
+
     /// @name Keyboard Input
     /// @{
-    SimObjectPtr<GuiControl> mFirstResponder;
+    GuiControl* mFirstResponder;
     static GuiControl *smPrevResponder;
     static GuiControl *smCurResponder;
     /// @}
@@ -172,7 +182,8 @@ public:
         horizResizeWidth,       ///< fixed on the left and right
         horizResizeLeft,        ///< fixed on the right and width
         horizResizeCenter,
-        horizResizeRelative     ///< resize relative
+        horizResizeRelative,    ///< resize relative
+		horizResizeFill         ///< fill the entire content area of the parent
     };
     enum vertSizingOptions
     {
@@ -180,7 +191,8 @@ public:
         vertResizeHeight,       ///< fixed on the top and bottom
         vertResizeTop,          ///< fixed in height and on the bottom
         vertResizeCenter,
-        vertResizeRelative      ///< resize relative
+        vertResizeRelative,     ///< resize relative
+		vertResizeFill          ///< fill the entire content area of the parent
     };
 	enum TextRotationOptions
 	{
@@ -188,6 +200,8 @@ public:
 		tRotateLeft, 
 		tRotateRight
 	};
+
+	bool mPassEventThru = false;
 
 protected:
     /// @name Control State
@@ -219,6 +233,10 @@ protected:
     F32                 mFontSizeAdjust;
     ColorI              mFontColor;
     bool                mOverrideFontColor;
+
+	static bool writeFontSizeAdjustFn(void* obj, const char* data) { GuiControl* ctrl = static_cast<GuiControl*>(obj); return ctrl->mFontSizeAdjust != 1; }
+	static bool writeFontColorFn(void* obj, const char* data) { GuiControl* ctrl = static_cast<GuiControl*>(obj); return ctrl->mOverrideFontColor && ctrl->mFontColor != ColorI(0,0,0,255); }
+	static bool writeOverrideFontColorFn(void* obj, const char* data) { GuiControl* ctrl = static_cast<GuiControl*>(obj); return ctrl->mOverrideFontColor; }
 
     /// @}
 
@@ -354,6 +372,10 @@ public:
     /// @param   value   True if object should be visible
     virtual void setVisible(bool value);
     inline bool isVisible() { return mVisible; } ///< Returns true if the object is visible
+	static bool writeVisibleFn(void* obj, const char* data) { GuiControl* ctrl = static_cast<GuiControl*>(obj); return !ctrl->isVisible(); }
+	static bool writeUseInputFn(void* obj, const char* data) { GuiControl* ctrl = static_cast<GuiControl*>(obj); return !ctrl->mUseInput; }
+	static bool writeIsContainerFn(void* obj, const char* data) { GuiControl* ctrl = static_cast<GuiControl*>(obj); return ctrl->mRendersChildren && !ctrl->mIsContainer; }
+	static bool setIsContainerFn(void* obj, const char* data) { GuiControl* ctrl = static_cast<GuiControl*>(obj); ctrl->mIsContainer = ctrl->mRendersChildren ? dAtob(data) : false; return false; }
 
     /// Sets the status of this control as active and responding or inactive
     /// @param   value   True if this is active
@@ -445,11 +467,24 @@ public:
     /// @param   child   Child object
     virtual void childResized(GuiControl *child);
 
+	/// Called when a child control of the object is moved
+	/// @param   child   Child object
+	virtual void childMoved(GuiControl* child);
+
+	/// Called when the children of this control may have been reordered
+	virtual void childrenReordered();
+
     /// Called when this objects parent is resized
     /// @param   oldParentExtent   The old size of the parent object
     /// @param   newParentExtent   The new size of the parent object
     virtual void parentResized(const Point2I &oldParentExtent, const Point2I &newParentExtent);
-    /// @}
+    
+	/// Removes the resize mode of fill and changes it to right or bottom
+	void preventResizeModeFill();
+
+	/// Removes the resize mode of center and changes it to right or bottom
+	void preventResizeModeCenter();
+	/// @}
 
     /// @name Rendering
     /// @{
@@ -468,7 +503,10 @@ public:
     /// @param   offset   The top left of the parent control
     /// @param   contentOffset   The top left of the parent's content
     /// @param   updateRect   The screen area this control has drawing access to
-    virtual void renderChildControls(Point2I offset, RectI content, const RectI &updateRect);
+    virtual void renderChildControls(const Point2I& offset, const RectI& content, const RectI& updateRect);
+
+	/// Renders a single child control
+	virtual void renderChild(GuiControl* ctrl, const Point2I& offset, const RectI& content, const RectI& clipRect);
 
     /// Sets the area (local coordinates) this control wants refreshed each frame
     /// @param   pos   UpperLeft point on rectangle of refresh area
@@ -506,7 +544,7 @@ public:
 	virtual void onGroupRemove();
 
     /// Called when this object is added to the scene
-    bool onAdd();
+    virtual bool onAdd();
 
     /// Called when this object has a new child. Congratulations!
     virtual void onChildAdded( GuiControl *child );
@@ -540,7 +578,7 @@ public:
     /// Returns the control which the provided point is under, with layering
     /// @param   pt   Point to test
     /// @param   initialLayer  Layer of gui objects to begin the search
-    virtual GuiControl* findHitControl(const Point2I &pt, S32 initialLayer = -1);
+    virtual GuiControl* findHitControl(const Point2I &pt, S32 initialLayer = -1, const bool ignoreUseInput = false, const bool ignoreEditSelected = true);
 
     /// Lock the mouse within the provided control
     /// @param   lockingControl   Control to lock the mouse within
@@ -555,6 +593,11 @@ public:
     /// Returns true if the mouse is locked
     virtual bool isMouseLocked();
     /// @}
+
+	bool mAllowEventPassThru;
+	bool handleTouchDown(const GuiEvent& event, const Point2I& pt, S32 initialLayer = -1);
+	bool handleTouchUp(const GuiEvent& event, const Point2I& pt, S32 initialLayer = -1);
+	bool handleTouchMove(const GuiEvent& event, const Point2I& pt, S32 initialLayer = -1);
 
     //Sends a script event with modifier and mouse position if the script method exists. Returns true if the event is consumed.
     bool sendScriptMouseEvent(const char* name, const GuiEvent& event);
@@ -588,8 +631,9 @@ public:
     /// @}
 
 	//Called just before onTouch down for the hit control. The focus should then bubble up through the 
-	//controls allowing windows to move to the front.
-	virtual void onFocus();
+	//controls allowing windows to move to the front. If the focus arrives at the canvas and the first responder
+	//wasn't found, then the first responder loses the focus.
+	virtual void onFocus(bool foundFirstResponder);
     
     /// @name Editor Mouse Events
     ///
@@ -610,22 +654,22 @@ public:
     /// Called when a mouseDown event occurs on a control and the GUI editor is active
     /// @param   event   the GuiEvent which caused the call to this function
     /// @param   offset   the offset which is representative of the units x and y that the editor takes up on screen
-    virtual bool onMouseDownEditor(const GuiEvent &event, Point2I offset) { return false; };
+    virtual bool onMouseDownEditor(const GuiEvent &event, const Point2I& offset);
 
     /// Called when a mouseUp event occurs on a control and the GUI editor is active
     /// @param   event   the GuiEvent which caused the call to this function
     /// @param   offset   the offset which is representative of the units x and y that the editor takes up on screen
-    virtual bool onMouseUpEditor(const GuiEvent &event, Point2I offset) { return false; };
+    virtual bool onMouseUpEditor(const GuiEvent &event, const Point2I& offset) { return false; };
 
     /// Called when a rightMouseDown event occurs on a control and the GUI editor is active
     /// @param   event   the GuiEvent which caused the call to this function
     /// @param   offset   the offset which is representative of the units x and y that the editor takes up on screen
-    virtual bool onRightMouseDownEditor(const GuiEvent &event, Point2I offset) { return false; };
+    virtual bool onRightMouseDownEditor(const GuiEvent &event, const Point2I& offset) { return false; };
 
     /// Called when a mouseDragged event occurs on a control and the GUI editor is active
     /// @param   event   the GuiEvent which caused the call to this function
     /// @param   offset   the offset which is representative of the units x and y that the editor takes up on screen
-    virtual bool onMouseDraggedEditor(const GuiEvent &event, Point2I offset) { return false; };
+    virtual bool onMouseDraggedEditor(const GuiEvent &event, const Point2I& offset) { return false; };
 
     /// @}
 
@@ -677,7 +721,8 @@ public:
     virtual void setFirstResponder();
 
     /// Clears the first responder for this chain
-    void clearFirstResponder();
+	void clearFirstResponder();
+	void clearFirstResponder(GuiControl* target);
 
     /// Returns the first responder for this chain
     GuiControl *getFirstResponder() { return mFirstResponder; }
@@ -766,12 +811,15 @@ public:
 	RectI applyPadding(Point2I &offset, Point2I &extent, GuiControlState currentState, GuiControlProfile *profile);
 
 	/// Returns the bounds of the rect with margin, borders, and padding applied.
-	RectI getInnerRect(Point2I &offset, Point2I &extent, GuiControlState currentState, GuiControlProfile *profile);
+	RectI getInnerRect(GuiControlState currentState = GuiControlState::NormalState);
+	RectI getInnerRect(Point2I& offset, GuiControlState currentState = GuiControlState::NormalState);
+	virtual RectI getInnerRect(Point2I &offset, Point2I &extent, GuiControlState currentState, GuiControlProfile *profile);
 
 	/// Returns the extent of the outer rect given the extent of the inner rect.
 	Point2I getOuterExtent(Point2I &innerExtent, GuiControlState currentState, GuiControlProfile *profile);
     S32 getOuterWidth(S32 innerExtent, GuiControlState currentState, GuiControlProfile* profile);
     S32 getOuterHeight(S32 innerExtent, GuiControlState currentState, GuiControlProfile* profile);
+
 
     virtual void inspectPostApply();
     virtual void inspectPreApply();
@@ -788,7 +836,10 @@ public:
     void relPosBattery(Point2F& battery, S32 pos, S32 ext, S32 parentExt);
     void resetStoredRelPos() { mUseRelPosH = false; mUseRelPosV = false; }
 
+	virtual void setDataField(StringTableEntry slotName, const char* array, const char* value);
+
 protected:
+	bool mPreviouslyAwake;
 	virtual void interpolateTick(F32 delta) {};
 	virtual void processTick() {};
 	virtual void advanceTime(F32 timeDelta) {};
@@ -801,6 +852,42 @@ protected:
     VertAlignmentType getVertAlignmentType(GuiControlProfile* profile);
     const ColorI& getFontColor(GuiControlProfile* profile, const GuiControlState state = GuiControlState::NormalState);
 };
+
 /// @}
+/// <summary>
+/// Can be inherited from to add the members and methods needed to easily add smooth 
+/// transitions between fill colors in default rendering. To use this:
+/// 1. First, inherit from this class instead of GuiControl.
+/// 2. In the render function, when it calls renderUniversalRect(), pass in getFillColor() and true to 
+///    override the existing fill color. It should look like:
+///	   renderUniversalRect(ctrlRect, mProfile, currentState, getFillColor(currentState), true);
+/// 
+/// Note that this will only change the fill color used during default rendering.
+/// </summary>
+class GuiEasingSupport : public GuiControl
+{
+private:
+	typedef GuiControl Parent;
+
+protected:
+	FluidColorI mFluidFillColor; //The actual fill color as it moves fluidly from one color to another.
+	GuiControlState mPreviousState;
+	GuiControlState mCurrentState;
+
+public:
+	GuiEasingSupport();
+	static void initPersistFields();
+
+	EasingFunction mEaseFillColorHL; //Transitioning to or from HL (if SL is not involved)
+	EasingFunction mEaseFillColorSL; //Transitioning to or from SL (over HL)
+
+	S32 mEaseTimeFillColorHL;
+	S32 mEaseTimeFillColorSL;
+
+	virtual void setControlProfile(GuiControlProfile* prof);
+	const ColorI& getFillColor(const GuiControlState state); //Returns the fill color based on the state.
+	virtual void processTick();
+	inline const char* getEasingFunctionDescription(const EasingFunction ease) { return mFluidFillColor.getEasingFunctionDescription(ease); };
+};
 
 #endif

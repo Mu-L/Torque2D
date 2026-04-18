@@ -25,10 +25,10 @@ function AssetInspector::onAdd(%this)
 	%this.titlebar = new GuiControl()
 	{
 		HorizSizing="width";
-		VertSizing="top";
+		VertSizing="bottom";
 		Position="0 0";
 		Extent="700 34";
-		MinExtent="350 34";
+		MinExtent="0 34";
 		Text = "";
 	};
 	ThemeManager.setProfile(%this.titlebar, "panelProfile");
@@ -88,8 +88,7 @@ function AssetInspector::onAdd(%this)
 		HorizSizing = width;
 		VertSizing = height;
 		Position = "0 34";
-		Extent = "700 290";
-		MinExtent="350 290";
+		Extent = "700 336";
 		TabPosition = top;
 		Visible = false;
 	};
@@ -128,7 +127,7 @@ function AssetInspector::createTabPage(%this, %name, %class, %superClass)
 		HorizSizing = width;
 		VertSizing = height;
 		Position = "0 0";
-		Extent = "700 290";
+		Extent = "700 320";
 		Text = %name;
 	};
 	ThemeManager.setProfile(%page, "tabPageProfile");
@@ -143,7 +142,7 @@ function AssetInspector::createScroller(%this)
 		HorizSizing="width";
 		VertSizing="height";
 		Position="0 0";
-		Extent="700 290";
+		Extent="700 320";
 		hScrollBar="alwaysOff";
 		vScrollBar="alwaysOn";
 		constantThumbHeight="0";
@@ -165,7 +164,7 @@ function AssetInspector::createInspector(%this)
 		HorizSizing="width";
 		VertSizing="height";
 		Position="0 0";
-		Extent="686 290";
+		Extent="686 320";
 		FieldCellSize="300 40";
 		ControlOffset="10 18";
 		ConstantThumbHeight=false;
@@ -187,6 +186,10 @@ function AssetInspector::createInspector(%this)
 	ThemeManager.setProfile(%inspector, "checkboxProfile", "checkboxProfile");
 	ThemeManager.setProfile(%inspector, "buttonProfile", "buttonProfile");
 	ThemeManager.setProfile(%inspector, "tipProfile", "tooltipProfile");
+	ThemeManager.setProfile(%inspector, "colorPickerProfile", "colorPopupProfile");
+	ThemeManager.setProfile(%inspector, "colorPopupProfile", "colorPopupPanelProfile");
+	ThemeManager.setProfile(%inspector, "emptyProfile", "colorPopupPickerProfile");
+	ThemeManager.setProfile(%inspector, "colorPickerSelectorProfile", "colorPopupSelectorProfile");
 
 	return %inspector;
 }
@@ -230,7 +233,6 @@ function AssetInspector::loadImageAsset(%this, %imageAsset, %assetID)
 	%this.inspector.addHiddenField("AssetPrivate");
 	%this.inspector.addHiddenField("ExplicitMode");
 	%this.inspector.inspect(%imageAsset);
-	%this.inspector.openGroupByIndex(0);
 
 	%this.imageFrameEditPage.inspect(%imageAsset);
 	%this.imageLayersEditPage.inspect(%imageAsset);
@@ -247,7 +249,6 @@ function AssetInspector::loadAnimationAsset(%this, %animationAsset, %assetID)
 	%this.inspector.addHiddenField("AssetInternal");
 	%this.inspector.addHiddenField("AssetPrivate");
 	%this.inspector.inspect(%animationAsset);
-	%this.inspector.openGroupByIndex(0);
 }
 
 function AssetInspector::loadParticleAsset(%this, %particleAsset, %assetID)
@@ -302,7 +303,6 @@ function AssetInspector::onChooseParticleAsset(%this, %particleAsset)
 		%this.emitterGraphPage.inspect(%particleAsset, %index - 1);
 	}
 	%this.tabBook.selectPage(%curSel);
-	%this.inspector.openGroupByIndex(0);
 
 	%this.emitterButtonBar.visible = true;
 	%this.emitterButtonBar.refreshEnabled();
@@ -319,7 +319,6 @@ function AssetInspector::loadFontAsset(%this, %fontAsset, %assetID)
 	%this.inspector.addHiddenField("AssetInternal");
 	%this.inspector.addHiddenField("AssetPrivate");
 	%this.inspector.inspect(%fontAsset);
-	%this.inspector.openGroupByIndex(0);
 }
 
 function AssetInspector::loadAudioAsset(%this, %audioAsset, %assetID)
@@ -333,7 +332,6 @@ function AssetInspector::loadAudioAsset(%this, %audioAsset, %assetID)
 	%this.inspector.addHiddenField("AssetInternal");
 	%this.inspector.addHiddenField("AssetPrivate");
 	%this.inspector.inspect(%audioAsset);
-	%this.inspector.openGroupByIndex(0);
 }
 
 function AssetInspector::loadSpineAsset(%this, %spineAsset, %assetID)
@@ -347,7 +345,6 @@ function AssetInspector::loadSpineAsset(%this, %spineAsset, %assetID)
 	%this.inspector.addHiddenField("AssetInternal");
 	%this.inspector.addHiddenField("AssetPrivate");
 	%this.inspector.inspect(%spineAsset);
-	%this.inspector.openGroupByIndex(0);
 }
 
 function AssetInspector::deleteAsset(%this)

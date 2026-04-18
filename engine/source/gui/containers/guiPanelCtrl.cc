@@ -30,7 +30,6 @@ IMPLEMENT_CONOBJECT(GuiPanelCtrl);
 GuiPanelCtrl::GuiPanelCtrl()
 {
    mActive = true;
-   mIsContainer = true;
 	mHeader = NULL;
 }
 

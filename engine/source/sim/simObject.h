@@ -305,6 +305,7 @@ public:
 private:
     // dictionary information stored on the object
     StringTableEntry objectName;
+	StringTableEntry objectNameEditor;
     SimObject*       nextNameObject;
     SimObject*       nextManagerNameObject;
     SimObject*       nextIdObject;
@@ -374,6 +375,7 @@ protected:
     static bool writeSuperclass( void* obj, StringTableEntry pFieldName )            { SimObject* simObject = static_cast<SimObject*>(obj); return simObject->mSuperClassName != NULL && simObject->mSuperClassName != StringTable->EmptyString; }
     static bool writeClass( void* obj, StringTableEntry pFieldName )                 { SimObject* simObject = static_cast<SimObject*>(obj); return simObject->mClassName != NULL && simObject->mClassName != StringTable->EmptyString; }
     static bool setProtectedName(void * obj, const char * data);
+	static const char* getProtectedName(void* obj, const char* data);
     // Accessors
     public:
     StringTableEntry getClassNamespace() const { return mClassName; };
@@ -413,7 +415,7 @@ public:
     /// @param   slotName    Field to access.
     /// @param   array       String containing index into array; if NULL, it is ignored.
     /// @param   value       Value to store.
-    void setDataField(StringTableEntry slotName, const char *array, const char *value);
+    virtual void setDataField(StringTableEntry slotName, const char *array, const char *value);
 
     const char *getPrefixedDataField(StringTableEntry fieldName, const char *array);
 
@@ -621,7 +623,7 @@ public:
     inline SimObjectId getId( void ) const { return mId; }
     inline StringTableEntry getIdString( void ) const { return mIdString; }
     U32 getType() const  { return mTypeMask; }
-    const StringTableEntry getName( void ) const { return objectName; };
+    const StringTableEntry getName( void ) const;
 
     void setId(SimObjectId id);
     void assignName(const char* name);

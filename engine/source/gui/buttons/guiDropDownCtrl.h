@@ -65,6 +65,8 @@ class GuiDropDownCtrl : public GuiButtonCtrl
 private:
    typedef GuiButtonCtrl Parent;
 
+   const static S32 DEFAULT_MAX_HEIGHT = 300;
+   const static S32 DEFAULT_THICKNESS = 12;
    S32 mMaxHeight;
    bool mIsOpen;
 
@@ -112,6 +114,11 @@ public:
    void setScrollBarThickness(S32 thickness) { mScrollBarThickness = thickness; }
 
    inline GuiListBoxCtrl* getList() { return mListBox; }
+
+   static bool writeMaxHeightFn(void* obj, StringTableEntry pFieldName) { return static_cast<GuiDropDownCtrl*>(obj)->mMaxHeight != DEFAULT_MAX_HEIGHT; }
+   static bool writeConstantThumbHeightFn(void* obj, StringTableEntry pFieldName) { return static_cast<GuiDropDownCtrl*>(obj)->mUseConstantHeightThumb; }
+   static bool writeShowArrowButtonsFn(void* obj, StringTableEntry pFieldName) { return static_cast<GuiDropDownCtrl*>(obj)->mShowArrowButtons; }
+   static bool writeScrollBarThicknessFn(void* obj, StringTableEntry pFieldName) { return static_cast<GuiDropDownCtrl*>(obj)->mScrollBarThickness != DEFAULT_THICKNESS; }
 
    DECLARE_CONOBJECT(GuiDropDownCtrl);
 };

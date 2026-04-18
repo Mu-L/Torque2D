@@ -30,12 +30,14 @@ GuiExpandCtrl::GuiExpandCtrl()
 {
    mActive = true;
    mExpanded = false;
-   mIsContainer = true;
    mCollapsedExtent.set(64,64);
    mAnimationProgress = 1;
    mExpandedExtent.set(64, 64);
    mEasingFunction = EasingFunction::Linear;
    mAnimationLength = 500;
+   mCalcGuard = false;
+
+   setField("profile", "GuiDefaultProfile");
 }
 
 void GuiExpandCtrl::initPersistFields()
@@ -44,6 +46,13 @@ void GuiExpandCtrl::initPersistFields()
 
   addField("easeExpand", TypeEnum, Offset(mEasingFunction, GuiExpandCtrl), 1, &gEasingTable);
   addField("easeTimeExpand", TypeS32, Offset(mAnimationLength, GuiExpandCtrl));
+}
+
+void GuiExpandCtrl::addObject(SimObject* obj)
+{
+	Parent::addObject(obj);
+
+	toggleHiddenChildren();
 }
 
 void GuiExpandCtrl::parentResized(const Point2I &oldParentExtent, const Point2I &newParentExtent)
@@ -101,8 +110,9 @@ void GuiExpandCtrl::parentResized(const Point2I &oldParentExtent, const Point2I 
 		setCollapsedExtent(newExtent);
 	}
 
+	mCalcGuard = true;
 	resize(newPosition, newExtent);
-
+	mCalcGuard = false;
 	calcExpandedExtent();
 
 	if (mExpanded)
@@ -112,6 +122,7 @@ void GuiExpandCtrl::parentResized(const Point2I &oldParentExtent, const Point2I 
 	else
 	{
 		mBounds.extent = mCollapsedExtent;
+		toggleHiddenChildren();
 	}
 	setUpdate();
 }
@@ -120,6 +131,7 @@ void GuiExpandCtrl::childResized(GuiControl* child)
 {
 	calcExpandedExtent();
 	Parent::childResized(child);
+	toggleHiddenChildren();
 }
 
 void GuiExpandCtrl::setCollapsedExtent(const Point2I &extent)
@@ -134,16 +146,18 @@ bool GuiExpandCtrl::calcExpandedExtent()
 	if (!size())
 		return false;
 
-	mExpandedExtent = Point2I(0, 0);
-	for (iterator itr = begin(); itr != end(); ++itr)
+	if(!mCalcGuard)//Prevent needless calcuations
 	{
-		GuiControl* child = dynamic_cast<GuiControl*>(*itr);
-		mExpandedExtent.setMax(child->getExtent() + child->getPosition());
+		mExpandedExtent = Point2I(0, 0);
+		for (iterator itr = begin(); itr != end(); ++itr)
+		{
+			GuiControl* child = dynamic_cast<GuiControl*>(*itr);
+			mExpandedExtent.setMax(child->getExtent() + child->getPosition());
+		}
+
+		mExpandedExtent = getOuterExtent(mExpandedExtent, GuiControlState::NormalState, mProfile);
+		mExpandedExtent.set(getMax(mCollapsedExtent.x, mExpandedExtent.x), getMax(mCollapsedExtent.y, mExpandedExtent.y));
 	}
-
-	mExpandedExtent = getOuterExtent(mExpandedExtent, GuiControlState::NormalState, mProfile);
-	mExpandedExtent.set(getMax(mCollapsedExtent.x, mExpandedExtent.x), getMax(mCollapsedExtent.y, mExpandedExtent.y));
-
 	return true;
 }
 
@@ -157,6 +171,30 @@ void GuiExpandCtrl::setExpanded(bool isExpanded)
 	mAnimationProgress = 1 - mAnimationProgress;
 	mExpanded = isExpanded;
 	setProcessTicks(true);
+
+	if (mExpanded)
+	{
+		startExpand();
+	}
+	else
+	{
+		startCollapse();
+	}
+}
+
+void GuiExpandCtrl::setExpandedInstant(bool isExpanded)
+{
+	mExpanded = isExpanded;
+
+	if (mExpanded)
+	{
+		mBounds.extent.set(mExpandedExtent.x, mExpandedExtent.y);
+	}
+	else
+	{
+		mBounds.extent.set(mCollapsedExtent.x, mCollapsedExtent.y);
+	}
+	toggleHiddenChildren();
 }
 
 bool GuiExpandCtrl::processExpansion()
@@ -201,6 +239,14 @@ bool GuiExpandCtrl::processExpansion()
 	if (mAnimationProgress >= 1.0f)
 	{
 		mAnimationProgress = 1.0f;
+		if (!mExpanded)
+		{
+			collapseComplete();
+		}
+		else
+		{
+			expandComplete();
+		}
 		return false;
 	}
 	return true;
@@ -216,5 +262,63 @@ void GuiExpandCtrl::processTick()
 	if (!shouldWeContinue)
 	{
 		setProcessTicks(false);
+	}
+}
+
+void GuiExpandCtrl::startExpand()
+{
+	if (isMethod("onStartExpand"))
+	{
+		Con::executef(this, 2, "onStartExpand");
+	}
+
+	toggleHiddenChildren();
+}
+
+void GuiExpandCtrl::startCollapse()
+{
+	if (isMethod("onStartCollapse"))
+	{
+		Con::executef(this, 2, "onStartCollapse");
+	}
+}
+
+void GuiExpandCtrl::expandComplete()
+{
+	if (isMethod("onExpandComplete"))
+	{
+		Con::executef(this, 2, "onExpandComplete");
+	}
+}
+
+void GuiExpandCtrl::collapseComplete()
+{
+	if (isMethod("onCollapseComplete"))
+	{
+		Con::executef(this, 2, "onCollapseComplete");
+	}
+
+	toggleHiddenChildren();
+}
+
+void GuiExpandCtrl::toggleHiddenChildren()
+{
+	RectI innerRect = getInnerRect();
+	innerRect.point = Point2I::Zero;
+
+	for (iterator i = begin(); i != end(); i++)
+	{
+		GuiControl* ctrl = static_cast<GuiControl*>(*i);
+		
+		RectI childBounds = ctrl->getBounds();
+		RectI parentBounds = RectI(innerRect);
+		if (!mExpanded && !parentBounds.intersect(childBounds))
+		{
+			ctrl->mVisible = false;
+		}
+		else
+		{
+			ctrl->mVisible = true;
+		}
 	}
 }

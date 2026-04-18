@@ -33,6 +33,7 @@ GuiInspector::GuiInspector()
 {
    mGroups.clear();
    mTarget = NULL;
+   mOpenGroupList.clear();
 
    mGroupPanelProfile = NULL;
    setField("GroupPanelProfile", "GuiPanelProfile");
@@ -103,6 +104,10 @@ void GuiInspector::initPersistFields()
 	addField("arrowProfile", TypeGuiProfile, Offset(mArrowProfile, GuiInspector));
 	addField("CheckboxProfile", TypeGuiProfile, Offset(mCheckboxProfile, GuiInspector));
 	addField("ButtonProfile", TypeGuiProfile, Offset(mButtonProfile, GuiInspector));
+	addField("ColorPopupProfile", TypeGuiProfile, Offset(mColorPopupProfile, GuiInspector));
+	addField("ColorPopupPanelProfile", TypeGuiProfile, Offset(mColorPopupPanelProfile, GuiInspector));
+	addField("ColorPopupPickerProfile", TypeGuiProfile, Offset(mColorPopupPickerProfile, GuiInspector));
+	addField("ColorPopupSelectorProfile", TypeGuiProfile, Offset(mColorPopupSelectorProfile, GuiInspector));
 
 	addField("constantThumbHeight", TypeBool, Offset(mUseConstantHeightThumb, GuiInspector));
 	addField("scrollBarThickness", TypeS32, Offset(mScrollBarThickness, GuiInspector));
@@ -156,6 +161,18 @@ bool GuiInspector::onWake()
 	if (mButtonProfile != NULL)
 		mButtonProfile->incRefCount();
 
+	if (mColorPopupProfile != NULL)
+		mColorPopupProfile->incRefCount();
+
+	if (mColorPopupPanelProfile != NULL)
+		mColorPopupPanelProfile->incRefCount();
+
+	if (mColorPopupPickerProfile != NULL)
+		mColorPopupPickerProfile->incRefCount();
+
+	if (mColorPopupSelectorProfile != NULL)
+		mColorPopupSelectorProfile->incRefCount();
+
 	return true;
 }
 
@@ -201,6 +218,18 @@ void GuiInspector::onSleep()
 
 	if (mButtonProfile != NULL)
 		mButtonProfile->decRefCount();
+
+	if (mColorPopupProfile != NULL)
+		mColorPopupProfile->decRefCount();
+
+	if (mColorPopupPanelProfile != NULL)
+		mColorPopupPanelProfile->decRefCount();
+
+	if (mColorPopupPickerProfile != NULL)
+		mColorPopupPickerProfile->decRefCount();
+
+	if (mColorPopupSelectorProfile != NULL)
+		mColorPopupSelectorProfile->decRefCount();
 }
 
 void GuiInspector::inspectPostApply()
@@ -209,9 +238,7 @@ void GuiInspector::inspectPostApply()
 
 	if (mTarget)
 	{
-		SimObjectPtr<SimObject> oldTarget = mTarget;
-		mTarget = NULL;
-		inspectObject(oldTarget);
+		inspectObject(mTarget);
 	}
 }
 
@@ -222,15 +249,7 @@ void GuiInspector::resize(const Point2I &newPosition, const Point2I &newExtent)
 
 void GuiInspector::parentResized(const Point2I &oldParentExtent, const Point2I &newParentExtent)
 {
-   GuiControl *parent = getParent();
-   if( parent && dynamic_cast<GuiScrollCtrl*>(parent) != NULL )
-   {
-	   // Handle Parent Sizing (We constrain ourself to our parent's width)
-      GuiScrollCtrl *scroll = dynamic_cast<GuiScrollCtrl*>(parent);
-      setWidth(newParentExtent.x - scroll->scrollBarThickness());
-   }
-   else
-      Parent::parentResized(oldParentExtent,newParentExtent);
+   Parent::parentResized(oldParentExtent,newParentExtent);
 }
 
 bool GuiInspector::findExistentGroup( StringTableEntry groupName )
@@ -260,14 +279,28 @@ void GuiInspector::clearGroups()
    if( mGroups.empty() )
       return;
 
-   // Attempt to find it in the group list
-   Vector<GuiInspectorGroup*>::iterator i = mGroups.begin();
+	mOpenGroupList.clear();
 
-   for( ; i != mGroups.end(); i++ )
-      if( (*i)->isProperlyAdded() )
-         (*i)->deleteObject();
+	for(Vector<GuiInspectorGroup*>::iterator i = mGroups.begin(); i != mGroups.end(); i++ )
+	{
+		if ((*i)->isProperlyAdded())
+		{
+			GuiInspectorGroup* group = static_cast<GuiInspectorGroup*>(*i);
+
+			//First, save which groups are open by name
+			if (group->getExpanded())
+			{
+				mOpenGroupList.push_back(group->getGroupName());
+			}
+
+			group->deleteObject();
+		}
+	}
 
    mGroups.clear();
+
+   GuiControl* firstRes = getFirstResponder();
+   clearFirstResponder(firstRes);
 }
 
 void GuiInspector::inspectObject( SimObject *object )
@@ -305,6 +338,7 @@ void GuiInspector::inspectObject( SimObject *object )
       general->registerObject();
       mGroups.push_back( general );
       addObject( general );
+	  checkOpenGroupList(general);
    }
 
    // Grab this objects field list
@@ -322,6 +356,7 @@ void GuiInspector::inspectObject( SimObject *object )
             group->registerObject();
             mGroups.push_back( group );
             addObject( group );
+			checkOpenGroupList(group);
          }            
       }
    }
@@ -352,6 +387,18 @@ void GuiInspector::inspectObject( SimObject *object )
       guiCanvas->setFirstResponder( currResponder );
 }
 
+void GuiInspector::checkOpenGroupList(GuiInspectorGroup* group)
+{
+	for (Vector<StringTableEntry>::iterator i = mOpenGroupList.begin(); i != mOpenGroupList.end(); i++)
+	{
+		StringTableEntry text = static_cast<StringTableEntry>(*i);
+		if (dStrcmp(text, group->getGroupName()) == 0)
+		{
+			group->setExpandedInstant(true);
+		}
+	}
+}
+
 ConsoleMethod( GuiInspector, inspect, void, 3, 3, "(obj) Goes through the object's fields and autogenerates editor boxes\n"
               "@return No return value.")
 {
@@ -377,6 +424,15 @@ ConsoleMethod( GuiInspector, getInspectObject, const char*, 2, 2, "() - Returns 
       return pSimObject->getIdString();
    
    return "";
+}
+
+
+ConsoleMethod(GuiInspector, clear, const char*, 2, 2, "() - Uninspects\n"
+	"@return Not used.")
+{
+	object->clearGroups();
+
+	return "";
 }
 
 void GuiInspector::setName( const char* newName )
@@ -479,6 +535,10 @@ void GuiInspectorField::setData( const char* data )
       return;
 
    mTarget->inspectPreApply();
+   if (mGroup->mInspector->isMethod("onPreApply"))
+   {
+	   Con::executef(mGroup->mInspector, 3, "onPreApply", Con::getIntArg(mTarget->getId()));
+   }
 
    mTarget->setDataField( mField->pFieldname, mFieldArrayIndex, data );
 
@@ -486,6 +546,10 @@ void GuiInspectorField::setData( const char* data )
    updateValue( data );
 
    mTarget->inspectPostApply();
+   if (mGroup->mInspector->isMethod("onPostApply"))
+   {
+	   Con::executef(mGroup->mInspector, 3, "onPostApply", Con::getIntArg(mTarget->getId()));
+   }
 }
 
 const char* GuiInspectorField::getData()
@@ -925,7 +989,7 @@ bool GuiInspectorDynamicGroup::createContent()
 
       char commandBuf[64];
       dSprintf(commandBuf, 64, "%d.addDynamicField();", this->getId());
-      addFieldBtn->setField("profile", "GuiButtonDynProfile");
+      addFieldBtn->setField("profile", "GuiButtonProfile");
       addFieldBtn->setField("command", commandBuf);
       addFieldBtn->setField("text", "+");
       addFieldBtn->setExtent(Point2I(30, 30));
@@ -1216,7 +1280,7 @@ GuiControl* GuiInspectorDynamicField::constructRenameControl()
    {
       dSprintf(szBuffer, 512, "%d.%s = \"\";%d.inspectGroup();", mTarget->getId(), getFieldName(), mGroup->getId());
 
-      delButt->setField("profile", "GuiButtonDynProfile");
+      delButt->setField("profile", "GuiButtonProfile");
       delButt->setField("Text", "X");
       delButt->setPosition(Point2I((getExtent().x - 40), 0));
       delButt->setField("extent", "30 30");

@@ -23,6 +23,7 @@
 #include "console/consoleTypes.h"
 #include "console/console.h"
 #include "gui/containers/guiChainCtrl.h"
+#include "gui/editor/guiEditCtrl.h"
 
 #include "guiChainCtrl_ScriptBinding.h"
 
@@ -32,9 +33,11 @@ IMPLEMENT_CONOBJECT(GuiChainCtrl);
 
 GuiChainCtrl::GuiChainCtrl()
 {
-	mIsContainer = true;
 	mChildSpacing = 0;
 	mIsVertical = true;
+	mPrevIsVertical = true;
+	mBounds.extent.set(140, mEditOpenSpace);
+	mResizeGuard = false;
 }
 
 //------------------------------------------------------------------------------
@@ -43,14 +46,36 @@ void GuiChainCtrl::initPersistFields()
 {
 	Parent::initPersistFields();
 
+	addGroup("Gui Chain Settings");
 	addField("ChildSpacing", TypeS32, Offset(mChildSpacing, GuiChainCtrl));
 	addField("IsVertical", TypeBool, Offset(mIsVertical, GuiChainCtrl));
+	endGroup("Gui Chain Settings");
 }
 
 //------------------------------------------------------------------------------
+void GuiChainCtrl::inspectPreApply()
+{
+	mPrevIsVertical = mIsVertical;
+	Parent::inspectPreApply();
+}
 
 void GuiChainCtrl::inspectPostApply()
 {
+	if (mPrevIsVertical != mIsVertical && isEditMode())
+	{
+		//Since we're in the editor, we'll swap x and y, then calculateExtent will fix one of them.
+		iterator i;
+		for (i = begin(); i != end(); i++)
+		{
+			GuiControl* ctrl = static_cast<GuiControl*>(*i);
+			if (ctrl->isVisible())
+			{
+				S32 temp = ctrl->mBounds.point.x;
+				ctrl->mBounds.point.x = ctrl->mBounds.point.y;
+				ctrl->mBounds.point.y = temp;
+			}
+		}
+	}
 	calculateExtent();
 	Parent::inspectPostApply();
 }
@@ -59,23 +84,41 @@ void GuiChainCtrl::inspectPostApply()
 
 void GuiChainCtrl::childResized(GuiControl *child)
 {
-	calculateExtent();
+	calculateExtent(isEditMode());
+	Parent::childResized(child);
+}
+
+void GuiChainCtrl::childMoved(GuiControl* child)
+{
+	calculateExtent(isEditMode());
+	Parent::childMoved(child);
+}
+
+void GuiChainCtrl::childrenReordered()
+{
+	calculateExtent(isEditMode());
+	Parent::childrenReordered();
 }
 
 void GuiChainCtrl::resize(const Point2I &newPosition, const Point2I &newExtent)
 {
-	Point2I actualNewExtent = newExtent;
-	if (mIsVertical)
+	if (!mResizeGuard)
 	{
-		actualNewExtent.y = getExtent().y;
-	}
-	else
-	{
-		actualNewExtent.x = getExtent().x;
-	}
-	if(newPosition != getPosition() || actualNewExtent != getExtent())
-	{
-		Parent::resize(newPosition, actualNewExtent);
+		mResizeGuard = true;
+		Point2I actualNewExtent = newExtent;
+		if (mIsVertical)
+		{
+			actualNewExtent.y = getExtent().y;
+		}
+		else
+		{
+			actualNewExtent.x = getExtent().x;
+		}
+		if(newPosition != getPosition() || actualNewExtent != getExtent())
+		{
+			Parent::resize(newPosition, actualNewExtent);
+		}
+		mResizeGuard = false;
 	}
 }
 
@@ -90,6 +133,12 @@ void GuiChainCtrl::onChildAdded(GuiControl *child)
 	{
 		child->setVertSizing(vertResizeTop);
 	}
+
+	if (isEditMode())
+	{
+		child->mBounds.point = Point2I::Zero;
+	}
+
 	Parent::onChildAdded(child);
 	calculateExtent();
 }
@@ -99,13 +148,23 @@ void GuiChainCtrl::onChildRemoved(SimObject *child)
 	calculateExtent();
 }
 
-void GuiChainCtrl::calculateExtent()
+void GuiChainCtrl::calculateExtent(bool holdLength)
 {
-	Point2I offset = Point2I(mBounds.point.Zero);
-	Point2I extent = Point2I(getExtent());
-	RectI innerRect = getInnerRect(offset, extent, NormalState, mProfile);
+	Point2I offset = Point2I::Zero;
+	RectI innerRect = getInnerRect(offset);
 
 	S32 length = positionChildren(innerRect);
+	S32 oldLength = mIsVertical ? innerRect.extent.y : innerRect.extent.x;
+
+	if (isEditMode())
+	{
+		length += mEditOpenSpace;//This gives some space to add new controls.
+	}
+
+	if (holdLength && oldLength > length)
+	{
+		length = oldLength;
+	}
 
 	if (!mIsVertical)
 	{
@@ -137,7 +196,7 @@ S32 GuiChainCtrl::positionChildren(RectI &innerRect)
 	for (i = begin(); i != end(); i++)
 	{
 		GuiControl *ctrl = static_cast<GuiControl *>(*i);
-		if (ctrl->isVisible())
+		if (ctrl->isVisible() || smDesignTime)
 		{
 			if (length != 0)
 			{
@@ -152,10 +211,44 @@ S32 GuiChainCtrl::positionChildren(RectI &innerRect)
 			{
 				childPos.y = length;
 			}
-			ctrl->setPosition(childPos);
+			ctrl->mBounds.point = childPos;
 			length += mIsVertical ? ctrl->getExtent().y : ctrl->getExtent().x;
 		}
 	}
 
 	return length;
+}
+
+void GuiChainCtrl::onRender(Point2I offset, const RectI& updateRect)
+{
+	Parent::onRender(offset, updateRect);
+
+	if (isEditMode())
+	{
+		GuiEditCtrl* edit = GuiControl::smEditorHandle;
+		const GuiControl* addSet = edit->getAddSet();
+		SimSet& selectSet = edit->getSelectedSet();
+		if(this == addSet || selectSet.isMember(this))
+		{
+			ColorI fill = edit->getEditorColor();
+			fill.alpha = 100;
+
+			RectI rect;
+			if (mIsVertical)
+			{
+				rect = RectI(0, mBounds.extent.y - mEditOpenSpace, mBounds.extent.x, mEditOpenSpace);
+			}
+			else 
+			{
+				rect = RectI(mBounds.extent.x - mEditOpenSpace, 0, mEditOpenSpace, mBounds.extent.y);
+			}
+			rect.point = localToGlobalCoord(rect.point);
+			dglDrawRectFill(rect, fill);
+			dglSetBitmapModulation(getFontColor(edit->mProfile, NormalState));
+			F32 tempAdjust = mFontSizeAdjust;
+			mFontSizeAdjust = 1.5f;
+			renderText(rect.point, rect.extent, "+", edit->mProfile);
+			mFontSizeAdjust = tempAdjust;
+		}
+	}
 }

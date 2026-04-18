@@ -149,6 +149,14 @@ protected:
 	static bool setBitmapName(void *obj, const char *data) { static_cast<GuiSpriteCtrl *>(obj)->setBitmap(data); return false; }
 	static const char *getBitmapName(void *obj, const char *data) { return static_cast<GuiSpriteCtrl*>(obj)->getBitmapName(); }
 	static bool writeBitmapName(void* obj, StringTableEntry pFieldName) { GuiSpriteCtrl* pCastObject = static_cast<GuiSpriteCtrl*>(obj); if( pCastObject->usesAsset() ) return false; return pCastObject->mBitmapName != StringTable->EmptyString; }
+	static bool writeSingleFrameBitmap(void* obj, StringTableEntry pFieldName) { GuiSpriteCtrl* pCastObject = static_cast<GuiSpriteCtrl*>(obj); return !pCastObject->mSingleFrameBitmap && !pCastObject->usesAsset() && pCastObject->mBitmapName != StringTable->EmptyString; }
+	static bool writeTileImage(void* obj, StringTableEntry pFieldName) { GuiSpriteCtrl* pCastObject = static_cast<GuiSpriteCtrl*>(obj); return pCastObject->mTileImage; }
+	static bool writePositionOffset(void* obj, StringTableEntry pFieldName) { GuiSpriteCtrl* pCastObject = static_cast<GuiSpriteCtrl*>(obj); return !pCastObject->mPositionOffset.isZero(); }
+	static bool writeImageColor(void* obj, StringTableEntry pFieldName) { GuiSpriteCtrl* pCastObject = static_cast<GuiSpriteCtrl*>(obj); return pCastObject->mImageColor.red != 255 || pCastObject->mImageColor.green != 255 || pCastObject->mImageColor.blue != 255 || pCastObject->mImageColor.alpha != 255; }
+	static bool writeImageSize(void* obj, StringTableEntry pFieldName) { GuiSpriteCtrl* pCastObject = static_cast<GuiSpriteCtrl*>(obj); return pCastObject->mImageSize.x != 10 || pCastObject->mImageSize.y != 10; }
+	static bool writeFullSize(void* obj, StringTableEntry pFieldName) { GuiSpriteCtrl* pCastObject = static_cast<GuiSpriteCtrl*>(obj); return !pCastObject->mFullSize; }
+	static bool writeClampImage(void* obj, StringTableEntry pFieldName) { GuiSpriteCtrl* pCastObject = static_cast<GuiSpriteCtrl*>(obj); return !pCastObject->mClampImage; }
+	static bool writeConstrainProportions(void* obj, StringTableEntry pFieldName) { GuiSpriteCtrl* pCastObject = static_cast<GuiSpriteCtrl*>(obj); return !pCastObject->mConstrainProportions; }
 };
 
 #endif //_GUISPRITECTRL_H_

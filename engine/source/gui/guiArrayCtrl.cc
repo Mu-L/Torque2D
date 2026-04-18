@@ -36,7 +36,6 @@ GuiArrayCtrl::GuiArrayCtrl()
    mSize = Point2I(5, 30);
    mSelectedCell.set(-1, -1);
    mMouseOverCell.set(-1, -1);
-   mIsContainer = true;
 }
 
 bool GuiArrayCtrl::onWake()

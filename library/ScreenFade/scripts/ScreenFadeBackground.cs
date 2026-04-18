@@ -11,6 +11,7 @@ function ScreenFadeBackground::resetColor(%this)
 function ScreenFadeBackground::startSwap(%this)
 {
 	%this.resetColor();
+	%this.clear();
 	Canvas.pushDialog(%this);
 	%this.fadeTo(%this.solidColor, %this.swapTime, "EaseInOut");
 	%this.schedule(%this.swapTime, "doSwap");
@@ -58,8 +59,26 @@ function ScreenFadeBackground::onDialogClose(%this)
 		{
 			cancel(%this.hideSchedule);
 		}
+		%this.clear();
 		%this.fadeTo(%this.transparentColor, %this.dialogTime, "EaseIn");
 		%this.hideSchedule = %this.schedule(%this.dialogTime, "onCloseComplete");
+	}
+}
+
+function ScreenFadeBackground::onDialogSwap(%this, %dialog)
+{
+	if(%this.isAwake() && isObject(%this.dialog))
+	{
+		if(isEventPending(%this.hideSchedule))
+		{
+			cancel(%this.hideSchedule);
+		}
+		%this.setImageColor(%this.solidColor);
+		%this.stopListening(%this.dialog);
+		%this.removeIfMember(%this.dialog);
+		%this.dialog = %dialog;
+		%this.add(%this.dialog);
+		%this.startListening(%this.dialog);
 	}
 }
 

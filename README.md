@@ -1,5 +1,5 @@
 ![Torque Logo](images/banner1.png)
-## Torque2D 4.0 Early Access 2
+## Torque2D 4.0 Early Access 3
 
 MIT Licensed Open Source version of Torque2D from GarageGames. Maintained by the Torque Game Engines team and contributions from the community.
 
@@ -11,7 +11,7 @@ Torque2D 4.0: Rocket Edition is currently in progress. The major change with 4.0
 
 The managers can be reached by opening the console using the console button in the Toybox or by pressing Tilde(~) + Ctrl. You will then notice tabs along that top for the various tools currently available.
 
-You may also notice that we have several toys such as the Gui Editor Toy and Scene Editor Toy that are in-progress versions of future editors. These toys are not very useful yet, but we plan to develop them into full editors in coming releases.
+Early Access 3 introduces a **full GUI Editor** built from the ground up, replacing the previous Gui Editor Toy. The new editor includes an inspector, tree view, menus, save/load dialogs, frame set layouts, color picker, and control reordering. It provides a complete visual workflow for creating and editing GUI layouts within the engine.
 
 The Rocket Edition also features a revamped Gui System! Until now it has been a common practice among those seriously using T2D to avoid the Gui System as much as possible. We aim to fix that with the Rocket Edition. Explanation of how to use the updated Gui System can be found in the wiki in the [Gui Guide](https://github.com/TorqueGameEngines/Torque2D/wiki/GUI-Guide).
 
@@ -33,11 +33,14 @@ If you do not wish to compile the source code yourself, precompiled binary files
 
 After downloading a copy of the source code, the following project files for each platform are provided for you and can be found in the `engine/compilers` folder.
 
-* **Windows:** Visual Studio 2017 (works with the free Community Edition) and 2019
+* **Windows:** Visual Studio 2019 and 2022 (works with the free Community Edition)
 * **OSX:** Xcode
 * **Linux:** Make
 * **iOS:** Xcode_iOS
 * **Android:** Android Studio
+* **Web:** Emscripten/CMake
+
+Additionally, a **CMake** build system is now available as a cross-platform alternative to the platform-specific project files.
 
 See the [wiki](https://github.com/TorqueGameEngines/Torque2D/wiki) for available guides on platform setup and development.
 

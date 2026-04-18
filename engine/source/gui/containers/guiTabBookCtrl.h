@@ -93,6 +93,8 @@ private:
    TabPosition             mLastTabPosition; ///< Last known tab position, stored to compare to tabPosition to know when to resize children
    S32                     mFontHeight;      ///< Last known font height
    S32                     mTabWidth;        ///< Current tab width of the first tab
+   Point2I mTabDownPosition; 
+   bool mDepressed;
    
    enum
    {
@@ -114,6 +116,8 @@ private:
    DECLARE_CONOBJECT(GuiTabBookCtrl);
 
    static void initPersistFields();
+
+   bool mIsFrameSetGenerated;
 
     /// @name Control Events
     /// @{
@@ -241,7 +245,9 @@ private:
    void onTouchDown(const GuiEvent &event);
    void onTouchMove(const GuiEvent &event);
    void onTouchLeave(const GuiEvent &event);
-   virtual bool onMouseDownEditor(const GuiEvent &event, Point2I offset);
+   void onTouchDragged(const GuiEvent& event);
+   void onTouchUp(const GuiEvent& event);
+   bool onMouseDownEditor(const GuiEvent &event, const Point2I& offset);
    /// @}
 };
 

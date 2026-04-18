@@ -69,11 +69,13 @@ IMPLEMENT_CONOBJECT(GuiDropDownCtrl);
 
 GuiDropDownCtrl::GuiDropDownCtrl()
 {
-	mMaxHeight = 300;
+	mMaxHeight = DEFAULT_MAX_HEIGHT;
 	mBounds.extent.set(140, 24);
 	mIsOpen = false;
 	mActive = true;
 	mText = StringTable->insert("none");
+	mRendersChildren = false;
+	mIsContainer = false;
 
 	setField("profile", "GuiDropDownProfile");
 
@@ -93,6 +95,8 @@ GuiDropDownCtrl::GuiDropDownCtrl()
 	mScroll = new GuiScrollCtrl();
 	AssertFatal(mScroll, "GuiDropDownCtrl: Failed to initialize GuiScrollCtrl!");
 	mScroll->setField("profile", "GuiScrollProfile");
+	mScroll->setField("horizSizing","right");
+	mScroll->setField("vertSizing","bottom");
 	mScrollProfile = mScroll->mProfile;
 	mScrollProfile->incRefCount();
 
@@ -113,7 +117,7 @@ GuiDropDownCtrl::GuiDropDownCtrl()
 	mScroll->setField("constantThumbHeight", "0");
 	mUseConstantHeightThumb = false;
 	mScroll->setField("scrollBarThickness", "12");
-	mScrollBarThickness = 12;
+	mScrollBarThickness = DEFAULT_THICKNESS;
 	mScroll->setField("showArrowButtons", "0");
 	mShowArrowButtons = false;
 	
@@ -124,16 +128,18 @@ GuiDropDownCtrl::GuiDropDownCtrl()
 void GuiDropDownCtrl::initPersistFields()
 {
    Parent::initPersistFields();
-   addField("maxHeight", TypeBool, Offset(mMaxHeight, GuiDropDownCtrl));
+   addGroup("Drop Down");
+   addField("maxHeight", TypeS32, Offset(mMaxHeight, GuiDropDownCtrl), &writeMaxHeightFn);
    addField("scrollProfile", TypeGuiProfile, Offset(mScrollProfile, GuiDropDownCtrl));
    addField("thumbProfile", TypeGuiProfile, Offset(mThumbProfile, GuiDropDownCtrl));
    addField("arrowProfile", TypeGuiProfile, Offset(mArrowProfile, GuiDropDownCtrl));
    addField("trackProfile", TypeGuiProfile, Offset(mTrackProfile, GuiDropDownCtrl));
    addField("listBoxProfile", TypeGuiProfile, Offset(mListBoxProfile, GuiDropDownCtrl));
    addField("backgroundProfile", TypeGuiProfile, Offset(mBackgroundProfile, GuiDropDownCtrl));
-   addField("constantThumbHeight", TypeBool, Offset(mUseConstantHeightThumb, GuiDropDownCtrl));
-   addField("showArrowButtons", TypeBool, Offset(mShowArrowButtons, GuiDropDownCtrl));
-   addField("scrollBarThickness", TypeS32, Offset(mScrollBarThickness, GuiDropDownCtrl));
+   addField("constantThumbHeight", TypeBool, Offset(mUseConstantHeightThumb, GuiDropDownCtrl), &writeConstantThumbHeightFn);
+   addField("showArrowButtons", TypeBool, Offset(mShowArrowButtons, GuiDropDownCtrl), &writeShowArrowButtonsFn);
+   addField("scrollBarThickness", TypeS32, Offset(mScrollBarThickness, GuiDropDownCtrl), &writeScrollBarThicknessFn);
+   endGroup("Drop Down");
 }
 
 void GuiDropDownCtrl::onTouchUp(const GuiEvent &event)
@@ -161,7 +167,7 @@ GuiControlState GuiDropDownCtrl::getCurrentState()
 		return GuiControlState::DisabledState;
 	else if (mDepressed || mIsOpen)
 		return GuiControlState::SelectedState;
-	else if (mMouseOver)
+	else if (mMouseOver || isFirstResponder())
 		return GuiControlState::HighlightState;
 	else
 		return GuiControlState::NormalState;
@@ -204,6 +210,11 @@ void GuiDropDownCtrl::onRender(Point2I offset, const RectI& updateRect)
 			contentRect.extent.x -= contentRect.extent.y;
 		}
 		renderText(contentRect.point, contentRect.extent, mListBox->getItemText(index), mProfile);
+	}
+
+	if (isFirstResponder())
+	{
+		dglDrawRect(ctrlRect, mProfile->mCursorColor);
 	}
 }
 

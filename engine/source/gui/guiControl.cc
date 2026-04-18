@@ -35,6 +35,8 @@
 #include "string/unicode.h"
 #include "collection/vector.h"
 #include "2d/core/Utility.h"
+#include "gui/containers/guiScrollCtrl.h"
+#include "gui/editor/guiEditCtrl.h"
 
 #include <sstream>
 #include <iostream>
@@ -118,9 +120,11 @@ GuiControl::GuiControl()
    mVertSizing          = vertResizeBottom;
    mTooltipProfile      = NULL;
    mTooltip             = StringTable->EmptyString;
-   mTipHoverTime        = 1000;
-   mTooltipWidth		= 250;
-   mIsContainer         = false;
+   mTipHoverTime        = DEFAULT_TOOLTIP_HOVERTIME;
+   mTooltipWidth        = DEFAULT_TOOLTIP_WIDTH;
+   mRendersChildren     = true;
+   mIsContainer         = true;
+   mAllowEventPassThru  = false;
    mTextWrap			= false;
    mTextExtend          = false;
    mUseInput            = true;
@@ -139,10 +143,6 @@ bool GuiControl::onAdd()
    // Grab the classname of this object
    const char *cName = getClassName();
 
-   // if we're a pure GuiControl, then we're a container by default.
-   if(dStrcmp("GuiControl", cName) == 0)
-      mIsContainer = true;
-
    // Clamp to minExtent
    mBounds.extent.x = getMax( mMinExtent.x, mBounds.extent.x );
    mBounds.extent.y = getMax( mMinExtent.y, mBounds.extent.y );
@@ -160,9 +160,9 @@ void GuiControl::onChildAdded( GuiControl *child )
 	if(mProfile)
 	{
 		//This will cause the child control to be centered if it needs to be.
-		RectI innerRect = this->getInnerRect(mBounds.point, mBounds.extent, GuiControlState::NormalState, mProfile);
+		RectI innerRect = getInnerRect();
 		child->parentResized(innerRect.extent, innerRect.extent);
-
+		
 		if (isMethod("onChildAdded"))
 		{
 			Con::executef(this, 3, "onChildAdded", child->getIdString());
@@ -183,29 +183,31 @@ static EnumTable::Enums horzEnums[] =
     { GuiControl::horizResizeRight,      "right"     },
     { GuiControl::horizResizeWidth,      "width"     },
     { GuiControl::horizResizeLeft,       "left"      },
-   { GuiControl::horizResizeCenter,     "center"    },
-   { GuiControl::horizResizeRelative,   "relative"  }
+    { GuiControl::horizResizeCenter,      "center"   },
+    { GuiControl::horizResizeRelative,    "relative" },
+    { GuiControl::horizResizeFill,        "fill"     }
 };
-static EnumTable gHorizSizingTable(5, &horzEnums[0]);
+static EnumTable gHorizSizingTable(6, &horzEnums[0]);
 
 static EnumTable::Enums vertEnums[] =
 {
     { GuiControl::vertResizeBottom,      "bottom"     },
     { GuiControl::vertResizeHeight,      "height"     },
     { GuiControl::vertResizeTop,         "top"        },
-   { GuiControl::vertResizeCenter,      "center"     },
-   { GuiControl::vertResizeRelative,    "relative"   }
+    { GuiControl::vertResizeCenter,       "center"    },
+    { GuiControl::vertResizeRelative,     "relative"  },
+    { GuiControl::vertResizeFill,         "fill"      }
 };
-static EnumTable gVertSizingTable(5, &vertEnums[0]);
+static EnumTable gVertSizingTable(6, &vertEnums[0]);
 
 void GuiControl::initPersistFields()
 {
    Parent::initPersistFields();
 
    // Things relevant only to the editor.
-   addGroup("Gui Editing");
-   addField("isContainer",       TypeBool,      Offset(mIsContainer, GuiControl));
-   endGroup("Gui Editing");
+   addGroup("Editing");
+   addProtectedField("isContainer",       TypeBool,      Offset(mIsContainer, GuiControl), &setIsContainerFn, &defaultProtectedGetFn, &writeIsContainerFn, "True if the container should accept children in the editor. Some controls cannot be containers.");
+   endGroup("Editing");
 
    // Parent Group.
    addGroup("GuiControl");
@@ -217,11 +219,9 @@ void GuiControl::initPersistFields()
    addProtectedField("Position",          TypePoint2I,		Offset(mBounds.point, GuiControl), &setPositionFn, &defaultProtectedGetFn, "The location of the control in relation to its parent's content area.");
    addProtectedField("Extent",            TypePoint2I,		Offset(mBounds.extent, GuiControl), &setExtentFn, &defaultProtectedGetFn, "The size of the control writen as width and height.");
    addProtectedField("MinExtent",         TypePoint2I,		Offset(mMinExtent, GuiControl), &setMinExtentFn, &defaultProtectedGetFn, &writeMinExtentFn, "The extent will not shrink below this size.");
-   addField("canSave",           TypeBool,			Offset(mCanSave, GuiControl));
-   addField("Visible",           TypeBool,			Offset(mVisible, GuiControl));
-   addField("useInput",          TypeBool,          Offset(mUseInput, GuiControl));
-   addDepricatedField("Modal");
-   addField("SetFirstResponder", TypeBool, Offset(mFirstResponder, GuiControl));
+   addField("canSave",           TypeBool,          Offset(mCanSave, GuiControl), &defaultProtectedNotWriteFn);
+   addField("Visible",           TypeBool,          Offset(mVisible, GuiControl), &writeVisibleFn);
+   addField("useInput",          TypeBool,          Offset(mUseInput, GuiControl), &writeUseInputFn);
 
    addField("Variable",          TypeString,		Offset(mConsoleVariable, GuiControl));
    addField("Command",           TypeString,		Offset(mConsoleCommand, GuiControl));
@@ -233,8 +233,8 @@ void GuiControl::initPersistFields()
    addGroup("ToolTip");
    addField("tooltipprofile",    TypeGuiProfile,	Offset(mTooltipProfile, GuiControl));
    addField("tooltip",           TypeString,		Offset(mTooltip, GuiControl));
-   addField("tooltipWidth",      TypeS32,			Offset(mTooltipWidth, GuiControl));
-   addField("hovertime",         TypeS32,			Offset(mTipHoverTime, GuiControl));
+   addField("tooltipWidth",      TypeS32,			Offset(mTooltipWidth, GuiControl), &writeToolTipWidthFn);
+   addField("hovertime",         TypeS32,			Offset(mTipHoverTime, GuiControl), &writeToolTipHoverTimeFn);
    endGroup("ToolTip");
 
 
@@ -249,9 +249,9 @@ void GuiControl::initPersistFields()
    addField("textExtend", TypeBool, Offset(mTextExtend, GuiControl), &writeTextExtendFn, "If true, extent will change based on the size of the control's text when possible.");
    addField("align", TypeEnum, Offset(mAlignment, GuiControl), 1, &gAlignCtrlTable);
    addField("vAlign", TypeEnum, Offset(mVAlignment, GuiControl), 1, &gVAlignCtrlTable);
-   addField("fontSizeAdjust", TypeF32, Offset(mFontSizeAdjust, GuiControl), "A decimal value that is multiplied with the profile's fontSize to determine the control's actual font size.");
-   addField("fontColor", TypeColorI, Offset(mFontColor, GuiControl), "A color to override the font color of the control's profile. OverrideFontColor must be set to true for this to work.");
-   addField("overrideFontColor", TypeBool, Offset(mOverrideFontColor, GuiControl), "If true, the control's fontColor will override the profile's font color.");
+   addField("fontSizeAdjust", TypeF32, Offset(mFontSizeAdjust, GuiControl), &writeFontSizeAdjustFn, "A decimal value that is multiplied with the profile's fontSize to determine the control's actual font size.");
+   addField("overrideFontColor", TypeBool, Offset(mOverrideFontColor, GuiControl), &writeOverrideFontColorFn, "If true, the control's fontColor will override the profile's font color.");
+   addField("fontColor", TypeColorI, Offset(mFontColor, GuiControl), &writeFontColorFn, "A color to override the font color of the control's profile. OverrideFontColor must be set to true for this to work.");
    endGroup("Text");
 }
 
@@ -351,27 +351,28 @@ GuiCanvas *GuiControl::getRoot()
 
 void GuiControl::inspectPreApply()
 {
-   if(smDesignTime && smEditorHandle)
+   if(isEditMode())
       smEditorHandle->controlInspectPreApply(this);
    
    // The canvas never sleeps
+   // This forced sleep will allow us to unload and reload things in the editor.
+   mPreviouslyAwake = mAwake;
    if(mAwake && dynamic_cast<GuiCanvas*>(this) == NULL )
    {
       onSleep(); // release all our resources.
-      mAwake = true;
    }
 }
 
 void GuiControl::inspectPostApply()
 {
    // Shhhhhhh, you don't want to wake the canvas!
-   if(mAwake && dynamic_cast<GuiCanvas*>(this) == NULL )
+   // If this control was awake before we should revive it.
+   if(mPreviouslyAwake && !mAwake && dynamic_cast<GuiCanvas*>(this) == NULL )
    {
-      mAwake = false;
       onWake();
    }
    
-   if(smDesignTime && smEditorHandle)
+   if(isEditMode())
       smEditorHandle->controlInspectPostApply(this);
 }
 
@@ -412,22 +413,35 @@ void GuiControl::resize(const Point2I &newPosition, const Point2I &newExtent)
 	Point2I oldExtent = mBounds.extent;
 
     //force center if using center positioning
+	Point2I oldPosition = mBounds.point;
     Point2I actualNewPosition = Point2I(newPosition);
     GuiControl* parent = getParent();
-    if (parent)
+    if (parent && parent->mProfile)
     {
+		Point2I parentInnerExtent = parent->getInnerRect().extent;
         if (mHorizSizing == horizResizeCenter)
         {
-            actualNewPosition.x = (parent->mBounds.extent.x - actualNewExtent.x) / 2;
+            actualNewPosition.x = (parentInnerExtent.x - actualNewExtent.x) / 2;
         }
+		else if (mHorizSizing == horizResizeFill)
+		{
+			actualNewPosition.x = 0;
+			actualNewExtent.x = parentInnerExtent.x;
+		}
         if (mVertSizing == vertResizeCenter)
         {
-            actualNewPosition.y = (parent->mBounds.extent.y - actualNewExtent.y) / 2;
+            actualNewPosition.y = (parentInnerExtent.y - actualNewExtent.y) / 2;
         }
+		else if (mVertSizing == vertResizeFill)
+		{
+			actualNewPosition.y = 0;
+			actualNewExtent.y = parentInnerExtent.y;
+		}
     }
 
    // only do the child control resizing stuff if you really need to.
    bool extentChanged = (actualNewExtent != oldExtent);
+   bool positionChanged = (actualNewPosition != oldPosition);
 
    if (extentChanged) {
       //call set update both before and after
@@ -449,8 +463,16 @@ void GuiControl::resize(const Point2I &newPosition, const Point2I &newExtent)
 		  Con::executef(this, 2, "onResize");
 	  }
    }
-   else {
+   if(positionChanged) 
+   {
       mBounds.point = actualNewPosition;
+	  if(parent)
+		parent->childMoved(this);
+
+	  if (isMethod("onMoved"))
+	  {
+		  Con::executef(this, 2, "onMoved");
+	  }
    }
 }
 void GuiControl::setPosition( const Point2I &newPosition )
@@ -498,6 +520,26 @@ void GuiControl::childResized(GuiControl *child)
 	}
 }
 
+void GuiControl::childMoved(GuiControl* child)
+{
+	// Default to do nothing. Do not call resize from here as it will create an infinite loop.
+
+	if (isMethod("onChildMoved"))
+	{
+		Con::executef(this, 3, "onChildMoved", child->getIdString());
+	}
+}
+
+void GuiControl::childrenReordered()
+{
+	// Default to do nothing.
+
+	if (isMethod("onChildrenReordered"))
+	{
+		Con::executef(this, 2, "onChildrenReordered");
+	}
+}
+
 void GuiControl::parentResized(const Point2I &oldParentExtent, const Point2I &newParentExtent)
 {
    Point2I newPosition = getPosition();
@@ -509,11 +551,11 @@ void GuiControl::parentResized(const Point2I &oldParentExtent, const Point2I &ne
 	//In the case of centering, we want to make doubly sure we are using the inner rect.
 	GuiControl* parent = getParent();
 	Point2I parentInnerExt = Point2I(newParentExtent);
-	if(mHorizSizing == horizResizeCenter || mVertSizing == vertResizeCenter)
+	if(mHorizSizing == horizResizeCenter || mVertSizing == vertResizeCenter ||
+		mHorizSizing == horizResizeFill || mVertSizing == vertResizeFill)
 	{
 		//This is based on the "new" outer extent of the parent.
-      Point2I origin = Point2I(0, 0);
-		parentInnerExt = getInnerRect(origin, parent->mBounds.extent, NormalState, parent->mProfile).extent;
+		parentInnerExt = parent->getInnerRect().extent;
 	}
 
     if (mHorizSizing == horizResizeCenter)
@@ -522,6 +564,11 @@ void GuiControl::parentResized(const Point2I &oldParentExtent, const Point2I &ne
         newExtent.x += deltaX;
     else if (mHorizSizing == horizResizeLeft)
       newPosition.x += deltaX;
+	else if (mHorizSizing == horizResizeFill)
+	{
+		newPosition.x = 0;
+		newExtent.x = parentInnerExt.x;
+	}
     else if (mHorizSizing == horizResizeRelative && oldParentExtent.x != 0)
     {
         Point2F percent = relPosBatteryH(newPosition.x, newExtent.x, oldParentExtent.x);
@@ -538,6 +585,11 @@ void GuiControl::parentResized(const Point2I &oldParentExtent, const Point2I &ne
         newExtent.y += deltaY;
     else if (mVertSizing == vertResizeTop)
       newPosition.y += deltaY;
+	else if (mVertSizing == vertResizeFill)
+	{
+		newPosition.y = 0;
+		newExtent.y = parentInnerExt.y;
+	}
     else if(mVertSizing == vertResizeRelative && oldParentExtent.y != 0)
     {
         Point2F percent = relPosBatteryV(newPosition.y, newExtent.y, oldParentExtent.y);
@@ -551,6 +603,30 @@ void GuiControl::parentResized(const Point2I &oldParentExtent, const Point2I &ne
    newExtent = extentBattery(newExtent);
 
    resize(newPosition, newExtent);
+}
+
+void GuiControl::preventResizeModeFill()
+{
+	if (getHorizSizing() == horizResizeFill)
+	{
+		setHorizSizing(horizResizeRight);
+	}
+	if (getVertSizing() == vertResizeFill)
+	{
+		setVertSizing(vertResizeBottom);
+	}
+}
+
+void GuiControl::preventResizeModeCenter()
+{
+	if (getHorizSizing() == horizResizeCenter)
+	{
+		setHorizSizing(horizResizeRight);
+	}
+	if (getVertSizing() == vertResizeCenter)
+	{
+		setVertSizing(vertResizeBottom);
+	}
 }
 
 Point2I GuiControl::extentBattery(Point2I &newExtent)
@@ -694,8 +770,22 @@ RectI GuiControl::applyPadding(Point2I &offset, Point2I &extent, GuiControlState
 	return RectI(offset.x + leftSize, offset.y + topSize, (extent.x - leftSize) - rightSize, (extent.y - topSize) - bottomSize);
 }
 
+RectI GuiControl::getInnerRect(GuiControlState currentState)
+{
+	return getInnerRect(mBounds.point, mBounds.extent, currentState, mProfile);
+}
+
+RectI GuiControl::getInnerRect(Point2I& offset, GuiControlState currentState)
+{
+	return getInnerRect(offset, mBounds.extent, currentState, mProfile);
+}
+
 RectI GuiControl::getInnerRect(Point2I &offset, Point2I &extent, GuiControlState currentState, GuiControlProfile *profile)
 {
+	if (!profile)
+	{
+		return mBounds;
+	}
 	//Get the border profiles
 	GuiBorderProfile *leftProfile = profile->getLeftBorder();
 	GuiBorderProfile *rightProfile = profile->getRightBorder();
@@ -891,7 +981,7 @@ bool GuiControl::renderTooltip(Point2I &cursorPos, const char* tipText )
     return true;
 }
 
-void GuiControl::renderChildControls(Point2I offset, RectI content, const RectI &updateRect)
+void GuiControl::renderChildControls(const Point2I& offset, const RectI& content, const RectI& updateRect)
 {
    // offset is the upper-left corner of this control in screen coordinates. It should almost always be the same offset passed into the onRender method.
    // updateRect is the area that this control was allowed to draw in. It should almost always be the same as the value in onRender.
@@ -910,21 +1000,9 @@ void GuiControl::renderChildControls(Point2I offset, RectI content, const RectI 
 			  Con::errorf( "GuiControl::renderChildControls() object %i is NULL", count );
 			continue;
 		  }
-		  if (ctrl->mVisible)
+		  if (ctrl->mVisible && (!isEditMode() || !ctrl->isHidden()))
 		  {
-			 ctrl->mRenderInsetLT = content.point - offset;
-			 ctrl->mRenderInsetRB = mBounds.extent - (ctrl->mRenderInsetLT + content.extent);
-			 Point2I childPosition = content.point + ctrl->getPosition();
-			 RectI childClip(childPosition, ctrl->getExtent());
-
-			 if (childClip.intersect(clipRect))
-			 {
-				RectI old = dglGetClipRect();
-				dglSetClipRect(clipRect);
-				glDisable(GL_CULL_FACE);
-				ctrl->onRender(childPosition, RectI(childPosition, ctrl->getExtent()));
-				dglSetClipRect(old);
-			 }
+			 renderChild(ctrl, offset, content, clipRect);
 		  }
 		  size_cpy = objectList.size(); //	CHRIS: i know its wierd but the size of the list changes sometimes during execution of this loop
 		  if(size != size_cpy)
@@ -934,6 +1012,23 @@ void GuiControl::renderChildControls(Point2I offset, RectI content, const RectI 
 		  }
 	   }
    }
+}
+
+void GuiControl::renderChild(GuiControl* ctrl, const Point2I& offset, const RectI& content, const RectI& clipRect)
+{
+	ctrl->mRenderInsetLT = content.point - offset;
+	ctrl->mRenderInsetRB = mBounds.extent - (ctrl->mRenderInsetLT + content.extent);
+	Point2I childPosition = content.point + ctrl->getPosition();
+	RectI childClip(childPosition, ctrl->getExtent());
+
+	if (childClip.intersect(clipRect))
+	{
+		RectI old = dglGetClipRect();
+		dglSetClipRect(clipRect);
+		glDisable(GL_CULL_FACE);
+		ctrl->onRender(childPosition, RectI(childPosition, ctrl->getExtent()));
+		dglSetClipRect(old);
+	}
 }
 
 void GuiControl::setUpdateRegion(Point2I pos, Point2I ext)
@@ -1328,7 +1423,7 @@ bool GuiControl::pointInControl(const Point2I& parentCoordPoint)
 }
 
 
-GuiControl* GuiControl::findHitControl(const Point2I &pt, S32 initialLayer)
+GuiControl* GuiControl::findHitControl(const Point2I &pt, S32 initialLayer, const bool ignoreUseInput, const bool ignoreEditSelected)
 {
    iterator i = end(); // find in z order (last to first)
    while (i != begin())
@@ -1339,28 +1434,136 @@ GuiControl* GuiControl::findHitControl(const Point2I &pt, S32 initialLayer)
       {
          continue;
       }
-      else if (ctrl->mVisible && ctrl->pointInControl(pt - ctrl->mRenderInsetLT) && ctrl->mUseInput)
+      else if (ctrl->pointInControl(pt - ctrl->mRenderInsetLT) && 
+		ctrl->mVisible && 
+		(ignoreUseInput || ctrl->mUseInput) && 
+		(ignoreEditSelected || (isEditMode() && !ctrl->isEditSelected())))
       {
          Point2I ptemp = pt - (ctrl->mBounds.point + ctrl->mRenderInsetLT);
-         GuiControl *hitCtrl = ctrl->findHitControl(ptemp);
+         GuiControl *hitCtrl = ctrl->findHitControl(ptemp, -1, ignoreUseInput, ignoreEditSelected);
 
-         if(hitCtrl->mUseInput)
+         if(ignoreUseInput || hitCtrl->mUseInput)
             return hitCtrl;
       }
    }
    return this;
 }
 
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- //
+bool GuiControl::handleTouchDown(const GuiEvent& event, const Point2I& pt, S32 initialLayer)
+{
+	bool keepGoing = true;
+	iterator i = end(); // find in z order (last to first)
+	while (i != begin())
+	{
+		i--;
+		GuiControl* ctrl = static_cast<GuiControl*>(*i);
+		if (initialLayer >= 0 && ctrl->mLayer > initialLayer)
+		{
+			continue;
+		}
+		else if (ctrl->pointInControl(pt - ctrl->mRenderInsetLT) && ctrl->mVisible && ctrl->mUseInput)
+		{
+			Point2I ptemp = pt - (ctrl->mBounds.point + ctrl->mRenderInsetLT);
+			keepGoing = ctrl->handleTouchDown(event, ptemp) && ctrl->mAllowEventPassThru;
+		}
+
+		if (!keepGoing)
+		{
+			break;
+		}
+	}
+	if (keepGoing)
+	{
+		mPassEventThru = false;
+		onTouchDown(event);
+		keepGoing = mPassEventThru;
+	}
+	return keepGoing;
+}
+
+bool GuiControl::handleTouchUp(const GuiEvent& event, const Point2I& pt, S32 initialLayer)
+{
+	bool keepGoing = true;
+	iterator i = end(); // find in z order (last to first)
+	while (i != begin())
+	{
+		i--;
+		GuiControl* ctrl = static_cast<GuiControl*>(*i);
+		if (initialLayer >= 0 && ctrl->mLayer > initialLayer)
+		{
+			continue;
+		}
+		else if (ctrl->pointInControl(pt - ctrl->mRenderInsetLT) && ctrl->mVisible && ctrl->mUseInput)
+		{
+			Point2I ptemp = pt - (ctrl->mBounds.point + ctrl->mRenderInsetLT);
+			keepGoing = ctrl->handleTouchUp(event, ptemp) && ctrl->mAllowEventPassThru;
+		}
+
+		if (!keepGoing)
+		{
+			break;
+		}
+	}
+	if (keepGoing)
+	{
+		mPassEventThru = false;
+		onTouchUp(event);
+		keepGoing = mPassEventThru;
+	}
+	return keepGoing;
+}
+
+bool GuiControl::handleTouchMove(const GuiEvent& event, const Point2I& pt, S32 initialLayer)
+{
+	bool keepGoing = true;
+	iterator i = end(); // find in z order (last to first)
+	while (i != begin())
+	{
+		i--;
+		GuiControl* ctrl = static_cast<GuiControl*>(*i);
+		if (initialLayer >= 0 && ctrl->mLayer > initialLayer)
+		{
+			continue;
+		}
+		else if (ctrl->pointInControl(pt - ctrl->mRenderInsetLT) && ctrl->mVisible && ctrl->mUseInput)
+		{
+			Point2I ptemp = pt - (ctrl->mBounds.point + ctrl->mRenderInsetLT);
+			keepGoing = ctrl->handleTouchMove(event, ptemp) && ctrl->mAllowEventPassThru;
+		}
+
+		if (!keepGoing)
+		{
+			break;
+		}
+	}
+	if (keepGoing)
+	{
+		mPassEventThru = false;
+		onTouchMove(event);
+		keepGoing = mPassEventThru;
+	}
+	return keepGoing;
+}
 
 bool GuiControl::isMouseLocked()
 {
+	if (isEditMode())
+	{
+		return smEditorHandle->editIsMouseLocked(this);
+	}
+
    GuiCanvas *root = getRoot();
    return root ? root->getMouseLockedControl() == this : false;
 }
 
 void GuiControl::mouseLock(GuiControl *lockingControl)
 {
+	if (isEditMode())
+	{
+		smEditorHandle->editMouseLock(lockingControl);
+		return;
+	}
+
    GuiCanvas *root = getRoot();
    if (root)
       root->mouseLock(lockingControl);
@@ -1368,13 +1571,16 @@ void GuiControl::mouseLock(GuiControl *lockingControl)
 
 void GuiControl::mouseLock()
 {
-   GuiCanvas *root = getRoot();
-   if (root)
-      root->mouseLock(this);
+   mouseLock(this);
 }
 
 void GuiControl::mouseUnlock()
 {
+	if (isEditMode())
+	{
+		smEditorHandle->editMouseUnlock();
+		return;
+	}
    GuiCanvas *root = getRoot();
    if (root)
       root->mouseUnlock(this);
@@ -1603,16 +1809,19 @@ void GuiControl::onMiddleMouseDragged(const GuiEvent &event)
 GuiControl* GuiControl::findFirstTabable()
 {
    GuiControl *tabCtrl = NULL;
-   iterator i;
-   for (i = begin(); i != end(); i++)
+   if(mVisible && mAwake)
    {
-      GuiControl *ctrl = static_cast<GuiControl *>(*i);
-      tabCtrl = ctrl->findFirstTabable();
-      if (tabCtrl)
-      {
-         mFirstResponder = tabCtrl;
-         return tabCtrl;
-      }
+	   iterator i;
+	   for (i = begin(); i != end(); i++)
+	   {
+		  GuiControl *ctrl = static_cast<GuiControl *>(*i);
+		  tabCtrl = ctrl->findFirstTabable();
+		  if (tabCtrl)
+		  {
+			 mFirstResponder = tabCtrl;
+			 return tabCtrl;
+		  }
+	   }
    }
 
    //nothing was found, therefore, see if this ctrl is tabable
@@ -1629,11 +1838,14 @@ GuiControl* GuiControl::findLastTabable(bool firstCall)
    if (mProfile->mTabable)
       smPrevResponder = this;
 
-   iterator i;
-   for (i = begin(); i != end(); i++)
-   {
-      GuiControl *ctrl = static_cast<GuiControl *>(*i);
-      ctrl->findLastTabable(false);
+	if(mVisible && mAwake)
+	{
+	   iterator i;
+	   for (i = begin(); i != end(); i++)
+	   {
+		  GuiControl *ctrl = static_cast<GuiControl *>(*i);
+		  ctrl->findLastTabable(false);
+	   }
    }
 
    //after the entire tree has been traversed, return the last responder found
@@ -1657,12 +1869,16 @@ GuiControl *GuiControl::findNextTabable(GuiControl *curResponder, bool firstCall
 
    //loop through, checking each child to see if it is the one that follows the firstResponder
    GuiControl *tabCtrl = NULL;
-   iterator i;
-   for (i = begin(); i != end(); i++)
+
+   if (mVisible && mAwake)
    {
-      GuiControl *ctrl = static_cast<GuiControl *>(*i);
-      tabCtrl = ctrl->findNextTabable(curResponder, false);
-      if (tabCtrl) break;
+	   iterator i;
+	   for (i = begin(); i != end(); i++)
+	   {
+		  GuiControl *ctrl = static_cast<GuiControl *>(*i);
+		  tabCtrl = ctrl->findNextTabable(curResponder, false);
+		  if (tabCtrl) break;
+	   }
    }
    mFirstResponder = tabCtrl;
    return tabCtrl;
@@ -1683,12 +1899,16 @@ GuiControl *GuiControl::findPrevTabable(GuiControl *curResponder, bool firstCall
 
    //loop through, checking each child to see if it is the one that follows the firstResponder
    GuiControl *tabCtrl = NULL;
-   iterator i;
-   for (i = begin(); i != end(); i++)
+
+   if (mVisible && mAwake)
    {
-      GuiControl *ctrl = static_cast<GuiControl *>(*i);
-      tabCtrl = ctrl->findPrevTabable(curResponder, false);
-      if (tabCtrl) break;
+	   iterator i;
+	   for (i = begin(); i != end(); i++)
+	   {
+		  GuiControl *ctrl = static_cast<GuiControl *>(*i);
+		  tabCtrl = ctrl->findPrevTabable(curResponder, false);
+		  if (tabCtrl) break;
+	   }
    }
    mFirstResponder = tabCtrl;
    return tabCtrl;
@@ -1727,12 +1947,17 @@ bool GuiControl::ControlIsChild(GuiControl *child)
    return false;
 }
 
-void GuiControl::onFocus()
+void GuiControl::onFocus(bool foundFirstResponder)
 {
+	if (!foundFirstResponder && isFirstResponder())
+	{
+		foundFirstResponder = true;
+	}
+
 	//bubble the focus up
 	GuiControl *parent = getParent();
 	if (parent)
-		parent->onFocus();
+		parent->onFocus(foundFirstResponder);
 }
 
 bool GuiControl::isFirstResponder()
@@ -1743,7 +1968,7 @@ bool GuiControl::isFirstResponder()
 
 void GuiControl::setFirstResponder( GuiControl* firstResponder )
 {
-   if ( firstResponder && firstResponder->mProfile->mCanKeyFocus )
+   if ( firstResponder && firstResponder->mProfile && firstResponder->mProfile->mCanKeyFocus )
       mFirstResponder = firstResponder;
 
    GuiControl *parent = getParent();
@@ -1756,7 +1981,7 @@ void GuiControl::setFirstResponder()
     if ( mAwake && mVisible )
     {
 		GuiControl *parent = getParent();
-		if (mProfile->mCanKeyFocus == true && parent != NULL )
+		if (mProfile->mCanKeyFocus && parent )
 		{
 			parent->setFirstResponder(this);
 
@@ -1777,10 +2002,15 @@ void GuiControl::setFirstResponder()
 
 void GuiControl::clearFirstResponder()
 {
+	clearFirstResponder(this);
+}
+
+void GuiControl::clearFirstResponder(GuiControl* target)
+{
    GuiControl *parent = this;
    while((parent = parent->getParent()) != NULL)
    {
-      if(parent->mFirstResponder == this)
+      if(parent->mFirstResponder == target)
          parent->mFirstResponder = NULL;
       else
          break;
@@ -1858,16 +2088,18 @@ bool GuiControl::onKeyUp(const GuiEvent &event)
 
 void GuiControl::onAction()
 {
-   if (! mActive)
-      return;
+	if (! mActive)
+		return;
 
-   //execute the console command
-   if (mConsoleCommand && mConsoleCommand[0])
-   {
-      execConsoleCallback();
-   }
-   else
-      Con::executef(this, 1, "onAction");
+	//execute the console command
+	if (mConsoleCommand && mConsoleCommand[0])
+	{
+		execConsoleCallback();
+	}
+	else if(isMethod("onAction"))
+	{
+		Con::executef(this, 1, "onAction");
+	}
 }
 
 void GuiControl::onMessage(GuiControl *sender, S32 msg)
@@ -2026,7 +2258,7 @@ void GuiControl::renderLineList(const Point2I& offset, const Point2I& extent, co
 		}
 
 		Point2I start = Point2I(0, 0);
-		F32 rotation;
+		F32 rotation = 0.0f;
 		if (rot == tRotateNone)
 		{
             start.x += offsetX;
@@ -2210,6 +2442,46 @@ const char *GuiControl::getText()
 	return mText;
 }
 
+void GuiControl::setDataField(StringTableEntry slotName, const char* array, const char* value)
+{
+	this->findField(slotName);
+	const AbstractClassRep::Field* fld = this->findField(slotName);
+	if(fld)
+	{
+		if (fld->type == AbstractClassRep::DepricatedFieldType ||
+			fld->type == AbstractClassRep::StartGroupFieldType ||
+			fld->type == AbstractClassRep::EndGroupFieldType)
+			return;
+
+		ConsoleBaseType* cbt = ConsoleBaseType::getType(fld->type);
+		bool isProfile = strcmp(cbt->getTypeName(), "TypeGuiProfile") == 0;
+
+		if(isProfile && mAwake)
+		{
+			//Decrease the ref count on the old profile
+			void* dptr = (void*)(((const char*)this) + fld->offset);
+			GuiControlProfile** obj = (GuiControlProfile**)dptr;
+			if((*obj))
+				(*obj)->decRefCount();
+		}
+
+		SimObject::setDataField(slotName, array, value);
+
+		if (isProfile && mAwake)
+		{
+			//Increase the ref count on the new profile
+			void* dptr = (void*)(((const char*)this) + fld->offset);
+			GuiControlProfile** obj = (GuiControlProfile**)dptr;
+			if ((*obj))
+				(*obj)->incRefCount();
+		}
+	}
+	else 
+	{
+		SimObject::setDataField(slotName, array, value);
+	}
+}
+
 AlignmentType GuiControl::getAlignmentType()
 {
     return getAlignmentType(mProfile);
@@ -2233,4 +2505,147 @@ VertAlignmentType GuiControl::getVertAlignmentType(GuiControlProfile* profile)
 const ColorI& GuiControl::getFontColor(GuiControlProfile* profile, const GuiControlState state)
 {
     return mOverrideFontColor ? mFontColor : profile->getFontColor(state);
+}
+
+bool GuiControl::isEditMode()
+{
+	if (smDesignTime && smEditorHandle)
+	{
+		GuiEditCtrl* edit = GuiControl::smEditorHandle;
+		if (this == edit->getRoot())
+		{
+			return true;
+		}
+
+		//work up the parent chain to see if one of the parents is the edit root
+		GuiControl* parent = getParent();
+		if (parent)
+		{
+			return parent->isEditMode();
+		}
+	}
+	return false;
+}
+
+bool GuiControl::isEditSelected()
+{
+	if (smDesignTime && smEditorHandle)
+	{
+		GuiEditCtrl* edit = GuiControl::smEditorHandle;
+		
+		bool selected = false;
+		auto list = edit->getSelected();
+		for (auto i = list->begin(); i < list->end(); i++)
+		{
+			GuiControl* ctrl = dynamic_cast<GuiControl*>(*i);
+			if (ctrl && ctrl == this)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool GuiControl::onMouseDownEditor(const GuiEvent& event, const Point2I& offset)
+{
+	GuiEditCtrl* edit = GuiControl::smEditorHandle;
+	GuiControl* parent = getParent();
+	if (this != edit->getRoot() && parent)
+	{
+		return parent->onMouseDownEditor(event, offset);
+	}
+	return false;
+}
+
+//--------------------------------------------------------------------
+
+GuiEasingSupport::GuiEasingSupport()
+{
+	//fill color
+	mEaseFillColorHL = EasingFunction::Linear;
+	mEaseFillColorSL = EasingFunction::Linear;
+	mEaseTimeFillColorHL = 500;
+	mEaseTimeFillColorSL = 0;
+
+	//control state
+	mPreviousState = GuiControlState::DisabledState;
+	mCurrentState = GuiControlState::DisabledState;
+
+	mFluidFillColor = FluidColorI(); //The actual fill color as it moves fluidly from one color to another.
+}
+
+void GuiEasingSupport::initPersistFields()
+{
+	Parent::initPersistFields();
+
+	addGroup("Gui Easing Settings");
+	addField("easeFillColorHL", TypeEnum, Offset(mEaseFillColorHL, GuiEasingSupport), 1, &gEasingTable);
+	addField("easeFillColorSL", TypeEnum, Offset(mEaseFillColorSL, GuiEasingSupport), 1, &gEasingTable);
+	addField("easeTimeFillColorHL", TypeS32, Offset(mEaseTimeFillColorHL, GuiEasingSupport));
+	addField("easeTimeFillColorSL", TypeS32, Offset(mEaseTimeFillColorSL, GuiEasingSupport));
+	endGroup("Gui Easing Settings");
+}
+
+const ColorI& GuiEasingSupport::getFillColor(const GuiControlState state)
+{
+	if (state != mCurrentState)
+	{
+		//We have just switched states!
+		mPreviousState = mCurrentState;
+		mCurrentState = state;
+		if (mCurrentState == GuiControlState::DisabledState || mPreviousState == GuiControlState::DisabledState)
+		{
+			mFluidFillColor.stopFluidAnimation();
+			mFluidFillColor.set(mProfile->getFillColor(state));
+		}
+		else if (mCurrentState == GuiControlState::SelectedState || mPreviousState == GuiControlState::SelectedState)
+		{
+			mFluidFillColor.setEasingFunction(mEaseFillColorSL);
+			mFluidFillColor.setAnimationLength(mEaseTimeFillColorSL);
+			mFluidFillColor.startFluidAnimation(mProfile->getFillColor(state));
+		}
+		else if (mCurrentState == GuiControlState::HighlightState || mPreviousState == GuiControlState::HighlightState)
+		{
+			mFluidFillColor.setEasingFunction(mEaseFillColorHL);
+			mFluidFillColor.setAnimationLength(mEaseTimeFillColorHL);
+			mFluidFillColor.startFluidAnimation(mProfile->getFillColor(state));
+		}
+		else
+		{
+			//we should never get here...
+			mFluidFillColor.stopFluidAnimation();
+			mFluidFillColor.set(mProfile->getFillColor(state));
+		}
+	}
+
+	if (mFluidFillColor.isAnimating() && !isProcessingTicks())
+	{
+		setProcessTicks(true);
+	}
+
+	if (!mFluidFillColor.isAnimating())
+	{
+		mFluidFillColor.set(mProfile->getFillColor(state));
+	}
+
+	return mFluidFillColor;
+}
+
+void GuiEasingSupport::processTick()
+{
+	bool shouldWeContinue = false;
+
+	shouldWeContinue |= mFluidFillColor.processTick();
+
+	if (!shouldWeContinue)
+	{
+		setProcessTicks(false);
+	}
+}
+
+void GuiEasingSupport::setControlProfile(GuiControlProfile* prof)
+{
+	Parent::setControlProfile(prof);
+	mCurrentState = mCurrentState == DisabledState ? NormalState : DisabledState;
 }

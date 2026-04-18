@@ -393,8 +393,10 @@ bool GuiCanvas::processInputEvent(const InputEvent *event)
       else if(event->action == SI_BREAK)
       {
          if(mFirstResponder)
+		 {
             if(mFirstResponder->onKeyUp(mLastEvent))
                return true;
+		 }
 
          //see if there's an accelerator
          for (U32 i = 0; i < (U32)mAcceleratorMap.size(); i++)
@@ -408,6 +410,11 @@ bool GuiCanvas::processInputEvent(const InputEvent *event)
       }
       else if(event->action == SI_REPEAT)
       {
+		  if (mFirstResponder)
+		  {
+			  if (mFirstResponder->onKeyRepeat(mLastEvent))
+				  return true;
+		  }
 
          //if not handled, search for an accelerator
          for (U32 i = 0; i < (U32)mAcceleratorMap.size(); i++)
@@ -418,10 +425,6 @@ bool GuiCanvas::processInputEvent(const InputEvent *event)
                return true;
             }
          }
-
-         if(mFirstResponder)
-            mFirstResponder->onKeyRepeat(mLastEvent);
-         return true;
       }
    }
    else if(event->deviceType == MouseDeviceType && cursorON)
@@ -615,26 +618,7 @@ void GuiCanvas::rootMouseDown(const GuiEvent &event)
    //else pass it to whoever is underneath the cursor
    else
    {
-      iterator i;
-      i = end();
-      while (i != begin())
-      {
-         i--;
-         GuiControl *ctrl = static_cast<GuiControl *>(*i);
-         if (ctrl->mUseInput)
-         {
-             GuiControl* controlHit = ctrl->findHitControl(event.mousePoint);
-
-             //Regardless of what the control does, it has the user's focus.
-             controlHit->onFocus();
-
-             if (controlHit->mUseInput)
-             {
-                 controlHit->onTouchDown(event);
-                 break;
-             }
-         }
-      }
+      handleTouchDown(event, event.mousePoint);
    }
    if (bool(mMouseControl))
       mMouseControlClicked = true;
@@ -712,33 +696,37 @@ void GuiCanvas::rootScreenTouchDown(const GuiEvent &event)
     mPrevMouseTime = Platform::getVirtualMilliseconds();  
     mMouseButtonDown = true;  
   
-        iterator i;  
-        i = end();  
-        while (i != begin())  
-        {  
-            i--;  
-            GuiControl *ctrl = static_cast<GuiControl *>(*i);  
-            if (ctrl->mUseInput)
+    iterator i;  
+    i = end();  
+    while (i != begin())  
+    {  
+        i--;  
+        GuiControl *ctrl = static_cast<GuiControl *>(*i);  
+        if (ctrl->mUseInput)
+        {
+            GuiControl* controlHit = ctrl->findHitControl(event.mousePoint);
+
+            //If the control we hit is not the same one that is locked,  
+            // then unlock the existing control.  
+            if (bool(mMouseCapturedControl) && mMouseCapturedControl->isMouseLocked() && mMouseCapturedControl != controlHit)
             {
-                GuiControl* controlHit = ctrl->findHitControl(event.mousePoint);
-
-                //If the control we hit is not the same one that is locked,  
-                // then unlock the existing control.  
-                if (bool(mMouseCapturedControl) && mMouseCapturedControl->isMouseLocked() && mMouseCapturedControl != controlHit)
-                {
-                    mMouseCapturedControl->onTouchLeave(event);
-                }
-
-                //Regardless of what the control does, it has the user's focus.
-                controlHit->onFocus();
-
-                if (controlHit->mUseInput)
-                {
-                    controlHit->onTouchDown(event);
-                    break;
-                }
+                mMouseCapturedControl->onTouchLeave(event);
             }
-        }  
+
+            //Regardless of what the control does, it has the user's focus.
+            controlHit->onFocus(false);
+
+            if (controlHit->mUseInput)
+            {
+				controlHit->mPassEventThru = false;//If true after the call then pass the event to the next control below it.
+				controlHit->onTouchDown(event);
+				if (!controlHit->mPassEventThru)
+				{
+					break;
+				}
+            }
+        }
+    }
       
     if (bool(mMouseControl))  
         mMouseControlClicked = true;  
@@ -761,8 +749,12 @@ void GuiCanvas::rootScreenTouchUp(const GuiEvent &event)
 
             if (controlHit->mActive && controlHit->mUseInput)
             {
-                controlHit->onTouchUp(event);
-                break;
+				controlHit->mPassEventThru = false;//If true after the call then pass the event to the next control below it.
+				controlHit->onTouchUp(event);
+				if (!controlHit->mPassEventThru)
+				{
+					break;
+				}
             }
         }
     }
@@ -804,9 +796,11 @@ void GuiCanvas::rootMouseUp(const GuiEvent &event)
       mMouseCapturedControl->onTouchUp(event);
    else
    {
-      findMouseControl(event);
-      if(bool(mMouseControl))
-         mMouseControl->onTouchUp(event);
+		findMouseControl(event);
+		if (bool(mMouseControl))
+		{
+			handleTouchUp(event, event.mousePoint);
+		}
    }
 }
 
@@ -860,9 +854,11 @@ void GuiCanvas::rootMouseMove(const GuiEvent &event)
    }
    else
    {
-      findMouseControl(event);
-      if(bool(mMouseControl))
-         mMouseControl->onTouchMove(event);
+		findMouseControl(event);
+		if (bool(mMouseControl))
+		{
+			handleTouchMove(event, event.mousePoint);
+		}
    }
 }
 
@@ -1518,6 +1514,15 @@ void GuiCanvas::resetUpdateRegions()
    mCurUpdateRect = mOldUpdateRects[0];
 }
 
+void GuiCanvas::onFocus(bool foundFirstResponder)
+{
+	if (!foundFirstResponder && mFirstResponder)
+	{
+		mFirstResponder->onLoseFirstResponder();
+		mFirstResponder = NULL;
+	}
+}
+
 void GuiCanvas::setFirstResponder( GuiControl* newResponder )
 {
     GuiControl* oldResponder = mFirstResponder;
@@ -1525,4 +1530,11 @@ void GuiCanvas::setFirstResponder( GuiControl* newResponder )
 
     if ( oldResponder && ( oldResponder != mFirstResponder ) )
         oldResponder->onLoseFirstResponder();
+}
+
+bool GuiCanvas::isEditMode()
+{
+	//If we've walked up the chain all the way to canvas and haven't found the 
+	//editor then we are not in edit mode.
+	return false;
 }

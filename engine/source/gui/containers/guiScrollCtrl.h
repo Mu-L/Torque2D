@@ -32,6 +32,8 @@ class GuiScrollCtrl : public GuiControl
 private:
    typedef GuiControl Parent;
    bool mEventBubbled;
+   bool mCalcGuard;
+   bool mResizeGuard;
 
 protected:
 
@@ -157,9 +159,13 @@ public:
    virtual void onTouchLeave(const GuiEvent &event);
    virtual void onMouseWheelUp(const GuiEvent &event);
    virtual void onMouseWheelDown(const GuiEvent &event);
+   virtual bool onMouseDownEditor(const GuiEvent& event, const Point2I& offset);
+   virtual bool onMouseUpEditor(const GuiEvent& event, const Point2I& offset);
+   virtual bool onMouseDraggedEditor(const GuiEvent& event, const Point2I& offset);
 
    virtual bool onWake();
    virtual void onSleep();
+   virtual void inspectPostApply();
    virtual void setControlThumbProfile(GuiControlProfile* prof);
    virtual void setControlTrackProfile(GuiControlProfile* prof);
    virtual void setControlArrowProfile(GuiControlProfile* prof);
@@ -172,7 +178,7 @@ public:
    virtual void renderVScrollBar(const Point2I& offset);
    virtual void renderHScrollBar(const Point2I& offset);
    virtual GuiControl* findHitControl(const Point2I &pt, S32 initialLayer = -1);
-   virtual void renderChildControls(Point2I offset, RectI content, const RectI& updateRect);
+   virtual void renderChildControls(const Point2I& offset, const RectI& content, const RectI& updateRect);
 };
 
 #endif //_GUI_SCROLL_CTRL_H

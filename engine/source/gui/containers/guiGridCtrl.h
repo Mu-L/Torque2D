@@ -23,6 +23,7 @@ private:
 	U32 mRunningChainHeight;
 	U32 mCurrentChainHeight;
 	U8 mChainNumber;
+	bool mResizeGuard;
 
 public:
 	enum CellMode
@@ -68,8 +69,11 @@ public:
 	void inspectPostApply();
 	bool onWake();
 	void onSleep();
-	void onChildAdded(GuiControl *child);
-	void onChildRemoved(SimObject *child);
+	void onChildAdded(GuiControl* child);
+	void onChildRemoved(GuiControl* child);
+	void childResized(GuiControl* child);
+	void childMoved(GuiControl* child);
+	void childrenReordered();
 
 	void setCellSize(F32 width, F32 height);
 	inline Vector2 getCellSize(void) const { return Vector2(mCellSizeX, mCellSizeY); }

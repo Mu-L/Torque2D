@@ -46,6 +46,7 @@ class GuiExpandCtrl : public GuiControl, public Fluid
 {
 private:
    typedef GuiControl Parent;
+   bool mCalcGuard;
 
    void setCollapsedExtent(const Point2I &extent);
 
@@ -59,14 +60,21 @@ protected:
 public:
 	GuiExpandCtrl();
 
-   virtual void parentResized(const Point2I &oldParentExtent, const Point2I &newParentExtent);
-   virtual void childResized(GuiControl* child);
+	virtual void addObject(SimObject* obj);
+	virtual void parentResized(const Point2I &oldParentExtent, const Point2I &newParentExtent);
+	virtual void childResized(GuiControl* child);
 
-   inline bool getExpanded() { return mExpanded; };
-   void setExpanded(bool isExpanded);
+	inline bool getExpanded() { return mExpanded; };
+	void setExpanded(bool isExpanded);
+	void setExpandedInstant(bool isExpanded);
+	void startExpand();
+	void startCollapse();
+	void expandComplete();
+	void collapseComplete();
+	void toggleHiddenChildren();
 
-   static void initPersistFields();
-   DECLARE_CONOBJECT(GuiExpandCtrl);
+	static void initPersistFields();
+	DECLARE_CONOBJECT(GuiExpandCtrl);
 
 protected:
 	virtual void processTick();

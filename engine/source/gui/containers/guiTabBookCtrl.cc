@@ -30,6 +30,7 @@
 #include "gui/containers/guiScrollCtrl.h"
 #include "gui/editor/guiEditCtrl.h"
 #include "gui/guiDefaultControlRender.h"
+#include "gui/containers/guiFrameSetCtrl.h"
 
 #include "guiTabBookCtrl_ScriptBinding.h"
 
@@ -59,14 +60,17 @@ GuiTabBookCtrl::GuiTabBookCtrl()
    mBounds.extent.set( 400, 300 );
    mPageRect = RectI(0,0,0,0);
    mTabRect = RectI(0,0,0,0);
+   mTabDownPosition = Point2I();
+   mDepressed = false;
 
    mPages.reserve(12);
    mMinTabWidth = 64;
    mTabWidth = 64;
-   mIsContainer = true;
+   mIsFrameSetGenerated = false;
 
    mTabProfile = NULL;
 
+   setField("profile", "GuiDefaultProfile");
    setField("TabProfile", "GuiTabProfile");
 }
 
@@ -171,7 +175,8 @@ bool GuiTabBookCtrl::onWake()
       mBitmapBounds = mProfile->mBitmapArrayRects.address();
 
    //increment the tab profile
-   mTabProfile->incRefCount();
+   if (mTabProfile != NULL)
+		mTabProfile->incRefCount();
 
    return true;
 }
@@ -230,7 +235,10 @@ void GuiTabBookCtrl::resize(const Point2I &newPosition, const Point2I &newExtent
 
 void GuiTabBookCtrl::childResized(GuiControl *child)
 {
-   child->resize( Point2I(0,0), mPageRect.extent );
+	if(mPageRect.extent != child->mBounds.extent || child->mBounds.point != Point2I::Zero)
+	{
+		child->resize( Point2I(0,0), mPageRect.extent );
+	}
 }
 
 Point2I GuiTabBookCtrl::getTabLocalCoord(const Point2I &src)
@@ -254,6 +262,10 @@ void GuiTabBookCtrl::onTouchDown(const GuiEvent &event)
     Point2I localMouse = globalToLocalCoord( event.mousePoint );
     if( mTabRect.pointInRect( localMouse ) )
     {
+		mTabDownPosition = event.mousePoint;
+		mDepressed = true;
+		mouseLock();
+
 		Point2I tabLocalMouse = getTabLocalCoord(localMouse);
         GuiTabPageCtrl *tab = findHitTab(tabLocalMouse);
         if( tab != NULL && tab->isActive() )
@@ -287,9 +299,43 @@ void GuiTabBookCtrl::onTouchMove(const GuiEvent &event)
 void GuiTabBookCtrl::onTouchLeave( const GuiEvent &event )
 {
    mHoverTab = NULL;
+   Parent::onTouchLeave(event);
 }
 
-bool GuiTabBookCtrl::onMouseDownEditor(const GuiEvent &event, Point2I offset)
+void GuiTabBookCtrl::onTouchDragged(const GuiEvent& event)
+{
+	if (mDepressed && mActivePage && mActivePage->size() > 0)
+	{
+		Point2I deltaMousePosition = event.mousePoint - mTabDownPosition;
+		const S32 dragDist = 20;
+		if (mAbs(deltaMousePosition.x) > dragDist || mAbs(deltaMousePosition.y) > dragDist)
+		{
+			//That's cool, but to transform the tab into window, we need a parent FrameSet and a grandchild that's a docked window.
+			GuiFrameSetCtrl* frameSet = dynamic_cast<GuiFrameSetCtrl*>(getParent());
+			GuiWindowCtrl* window = dynamic_cast<GuiWindowCtrl*>((*mActivePage)[0]);
+			if (frameSet && window && window->mPageDocked)
+			{
+				//We have a winner!!!
+				mDepressed = false;
+				mouseUnlock();
+				frameSet->undockWindowFromBook(window, this, mActivePage);
+				return;
+			}
+		}
+	}
+	Parent::onTouchDragged(event);
+}
+
+void GuiTabBookCtrl::onTouchUp(const GuiEvent& event)
+{
+	if (mDepressed)
+	{
+		mouseUnlock();
+	}
+	Parent::onTouchUp(event);
+}
+
+bool GuiTabBookCtrl::onMouseDownEditor(const GuiEvent &event, const Point2I& offset)
 {
    bool handled = false;
    Point2I localMouse = globalToLocalCoord( event.mousePoint );
@@ -314,8 +360,11 @@ bool GuiTabBookCtrl::onMouseDownEditor(const GuiEvent &event, Point2I offset)
          edit->select( mActivePage );
    }
 
-   // Return whether we handled this or not.
-   return handled;
+   if (!handled)
+   {
+	   return Parent::onMouseDownEditor(event, offset);
+   }
+   return true;
 
 }
 
@@ -489,7 +538,7 @@ void GuiTabBookCtrl::calculatePageTabs()
    S32 currX      = 0;
    S32 currY      = 0;
    S32 tabHeight  = 0;
-   RectI innerRect = getInnerRect(mBounds.point, mBounds.extent, NormalState, mProfile);
+   RectI innerRect = getInnerRect();
    mFontHeight = mTabProfile->getFont(mFontSizeAdjust)->getHeight();
    Point2I innerExtent = Point2I(mFontHeight, mFontHeight);
    Point2I fontBasedBounds = getOuterExtent(innerExtent, NormalState, mTabProfile);
@@ -659,7 +708,7 @@ void GuiTabBookCtrl::balanceColumn( S32 column , S32 totalTabWidth )
       return;
 
    // Balance the tabs across the remaining space
-   RectI innerRect = getInnerRect(mBounds.point, mBounds.extent, NormalState, mProfile);
+   RectI innerRect = getInnerRect();
    S32 spaceToDivide = innerRect.extent.y - totalTabWidth;
    S32 pointDelta    = 0;
    for( S32 i = 0; i < rowTemp.size(); i++ )
@@ -696,7 +745,7 @@ void GuiTabBookCtrl::balanceRow( S32 row, S32 totalTabWidth )
       return;
 
    // Balance the tabs across the remaining space
-   RectI innerRect = getInnerRect(mBounds.point, mBounds.extent, NormalState, mProfile);
+   RectI innerRect = getInnerRect();
    S32 spaceToDivide = innerRect.extent.x - totalTabWidth;
    S32 pointDelta    = 0;
    for( S32 i = 0; i < rowTemp.size(); i++ )

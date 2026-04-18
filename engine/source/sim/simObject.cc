@@ -53,6 +53,7 @@ SimObject::SimObject()
 {
     mFlags.set( ModStaticFields | ModDynamicFields );
     objectName               = NULL;
+	objectNameEditor         = NULL;
     mInternalName            = NULL;
     nextNameObject           = (SimObject*)-1;
     nextManagerNameObject    = (SimObject*)-1;
@@ -208,6 +209,17 @@ void SimObject::assignName(const char *name)
         Con::errorf( "SimObject::assignName - Assigning name '%s' to instance of object with type '%s'."
         " This can cause namespace linking issues.", getClassName(), name  );
 
+    StringTableEntry newName = NULL;
+
+    if (name[0])
+        newName = StringTable->insert(name);
+
+	if (gEvalState.editorModeOn)
+	{
+		objectNameEditor = newName;
+		return;
+	}
+
     // Is this name already registered?
     if ( Sim::gNameDictionary->find(name) != NULL )
     {
@@ -215,11 +227,6 @@ void SimObject::assignName(const char *name)
         Con::errorf( "SimObject::assignName() - Attempted to set object to name '%s' but it is already assigned to another object.", name );
         return;
     }
-
-    StringTableEntry newName = NULL;
-
-    if (name[0])
-        newName = StringTable->insert(name);
 
     if (mGroup)
         mGroup->nameDictionary.remove(this);
@@ -813,9 +820,11 @@ StringTableEntry SimObject::getDataFieldPrefix( StringTableEntry fieldName )
     // Return nothing if field was not found.
     if ( pField == NULL )
         return StringTable->EmptyString;
-
     // Yes, so fetch the console base type.
     ConsoleBaseType* pConsoleBaseType = ConsoleBaseType::getType( pField->type );
+
+	if(pConsoleBaseType == NULL)
+		return StringTable->EmptyString;
 
     // Fetch the type prefix.
     return pConsoleBaseType->getTypePrefix();
@@ -1072,7 +1081,7 @@ void SimObject::initPersistFields()
 
    
    addGroup("SimBase");
-   addProtectedField("name", TypeName, Offset(objectName, SimObject), &setProtectedName, &defaultProtectedGetFn, "Name for the object.");
+   addProtectedField("name", TypeName, Offset(objectName, SimObject), &setProtectedName, &getProtectedName, "Name for the object.");
    addField("canSaveDynamicFields",    TypeBool,         Offset(mCanSaveFieldDictionary, SimObject), &writeCanSaveDynamicFields, "");
    addField("internalName",            TypeString,       Offset(mInternalName, SimObject), &writeInternalName, "");   
    addProtectedField("parentGroup",    TypeSimObjectPtr, Offset(mGroup, SimObject), &setParentGroup, &defaultProtectedGetFn, &writeParentGroup, "Group hierarchy parent of the object." );
@@ -1086,8 +1095,8 @@ void SimObject::initPersistFields()
 
    addGroup("Editing");
 
-   addProtectedField("hidden", TypeBool, NULL, &_setHidden, &_getHidden, &_writeHidden, "Whether the object is visible.");
-   addProtectedField("locked", TypeBool, NULL, &_setLocked, &_getLocked, &_writeLocked, "Whether the object can be edited.");
+   addProtectedField("hidden", TypeBool, NULL, &_setHidden, &_getHidden, &_writeHidden, "Temporarily hides the object in the editor.");
+   addProtectedField("locked", TypeBool, NULL, &_setLocked, &_getLocked, &_writeLocked, "Locks the object in the editor to prevent accidental changes.");
 
    endGroup("Editing");
 }
@@ -1096,16 +1105,35 @@ void SimObject::initPersistFields()
 
 bool SimObject::setProtectedName(void *obj, const char *data)
 {
-   if (disableNameChanging)
-      return false;
-   SimObject *object = static_cast<SimObject*>(obj);
+	if (disableNameChanging && !gEvalState.editorModeOn)
+			return false;
 
-   if (object->isProperlyAdded())
-      object->assignName(data);
+	SimObject *object = static_cast<SimObject*>(obj);
+	if (object->isProperlyAdded())
+		object->assignName(data);
 
    // always return false because we assign the name here
    return false;
 }
+
+const char* SimObject::getProtectedName(void* obj, const char* data)
+{
+	if (gEvalState.editorModeOn)
+	{
+		SimObject* object = static_cast<SimObject*>(obj);
+		return object->objectNameEditor;
+	}
+	return data;
+}
+
+const StringTableEntry SimObject::getName(void) const
+{ 
+	if (gEvalState.editorModeOn && objectNameEditor && objectNameEditor[0])
+	{
+		return objectNameEditor;
+	}
+	return objectName; 
+};
 
 
 //-----------------------------------------------------------------------------

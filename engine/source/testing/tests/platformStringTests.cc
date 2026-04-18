@@ -40,6 +40,8 @@ TEST( PlatformStringTests, dStrlenTest )
 {
     // Check length of string.
     ASSERT_EQ( (S32)dStrlen("GarageGames"), 11 ) << "String length failed.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -55,6 +57,8 @@ TEST( PlatformStringTests, dStrcatTest )
     // Check result.
     ASSERT_EQ( pResult, destination );
     ASSERT_STREQ( "GarageGames", pResult ) << "Concatenation failed.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -70,6 +74,8 @@ TEST( PlatformStringTests, dStrncatTest )
     // Check result.
     ASSERT_EQ( pResult, destination );
     ASSERT_STREQ( "GarageGam", pResult ) << "Explicit-length concatenation failed.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -84,6 +90,8 @@ TEST( PlatformStringTests, dStrcatlTest )
     // Check result.
     ASSERT_STREQ( "GarageGames", destination ) << "Variadic concatenation failed.";
     ASSERT_STREQ( "GarageGames", pResult ) << "Variadic concatenation failed.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -99,6 +107,8 @@ TEST( PlatformStringTests, dStrcmp8Test )
     ASSERT_GT( dStrcmp( source1, destination ), 0 ) << "Case-sensitive UTF8 compare failed.";
     ASSERT_EQ( dStrcmp( source2, destination ), 0 ) << "Case-sensitive UTF8 compare failed.";
     ASSERT_LT( dStrcmp( source3, destination ), 0 ) << "Case-sensitive UTF8 compare failed.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -115,6 +125,8 @@ TEST( PlatformStringTests, dStrcmp16Test )
     ASSERT_LT( 0, dStrcmp( source1, destination ) ) << "Case-sensitive UTF16 compare failed.";
     ASSERT_EQ( 0, dStrcmp( source2, destination ) ) << "Case-sensitive UTF16 compare failed.";
     ASSERT_GT( 0, dStrcmp( source3, destination ) ) << "Case-sensitive UTF16 compare failed.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -130,6 +142,8 @@ TEST( PlatformStringTests, dStricmpTest )
     ASSERT_GT( dStricmp( source1, destination ), 0 ) << "Case-insensitive compare failed.";
     ASSERT_EQ( dStricmp( source2, destination ), 0 ) << "Case-insensitive compare failed.";
     ASSERT_LT( dStricmp( source3, destination ), 0 ) << "Case-insensitive compare failed.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -145,6 +159,8 @@ TEST( PlatformStringTests, dStrncmpTest )
     ASSERT_GT( dStrncmp( source1, destination, sizeof(destination) ), 0 ) << "Case-sensitive compare failed.";
     ASSERT_EQ( dStrncmp( source2, destination, sizeof(destination) ), 0 ) << "Case-sensitive compare failed.";
     ASSERT_LT( dStrncmp( source3, destination, sizeof(destination) ), 0 ) << "Case-sensitive compare failed.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -160,6 +176,8 @@ TEST( PlatformStringTests, dStrnicmpTest )
     ASSERT_GT( dStrnicmp( source1, destination, sizeof(destination) ), 0 ) << "Case-insensitive compare failed.";
     ASSERT_EQ( dStrnicmp( source2, destination, sizeof(destination) ), 0 ) << "Case-insensitive compare failed.";
     ASSERT_LT( dStrnicmp( source3, destination, sizeof(destination) ), 0 ) << "Case-insensitive compare failed.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -176,6 +194,8 @@ TEST( PlatformStringTests, dStrcpyTest )
     ASSERT_EQ( pResult, destination );
     ASSERT_STREQ( "GarageGames", destination ) << "Copy failed.";
     ASSERT_STREQ( pResult, destination ) << "Copy failed.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -191,6 +211,8 @@ TEST( PlatformStringTests, dStrcpylTest )
     ASSERT_EQ( pResult, destination );
     ASSERT_STREQ( "GarageGames", destination ) << "Variadic copy failed.";
     ASSERT_STREQ( "GarageGames", pResult ) << "Variadic copy failed.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -204,6 +226,8 @@ TEST( PlatformStringTests, dStruprTest )
 
     // Check results.
     ASSERT_STREQ( "GARAGEGAMES", pResult ) << "Uppercase conversion failed.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -217,6 +241,8 @@ TEST( PlatformStringTests, dStrlwrTest )
 
     // Check results.
     ASSERT_STREQ( "garagegames", pResult ) << "Lowercase conversion failed.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -230,6 +256,8 @@ TEST( PlatformStringTests, dToupperTest )
         // Check results.
         ASSERT_EQ( (char)('A' + index), dToupper( character) ) << "Uppercase conversion incorrect.";
     }
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -243,6 +271,8 @@ TEST( PlatformStringTests, dTolowerTest )
         // Check results.
         ASSERT_EQ( (char)('a' + index), dTolower( character) ) << "Lowercase conversion incorrect.";
     }
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -258,6 +288,8 @@ TEST( PlatformStringTests, dStrchrTest )
     // Check results.
     ASSERT_STREQ( "mes", pResult1 ) << "Could not find character.";
     ASSERT_EQ( 0, pResult2 ) << "Should not have found character,";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -273,6 +305,8 @@ TEST( PlatformStringTests, dStrchrCONSTTest )
     // Check results.
     ASSERT_STREQ( "mes", pResult1 ) << "Could not find character.";
     ASSERT_EQ( 0, pResult2 ) << "Should not have found character,";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -288,6 +322,8 @@ TEST( PlatformStringTests, dStrrchrTest )
     // Check results.
     ASSERT_STREQ( "Games", pResult1 ) << "Could not find character.";
     ASSERT_EQ( 0, pResult2 ) << "Should not have found character,";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -303,6 +339,8 @@ TEST( PlatformStringTests, dStrrchrCONSTTest )
     // Check results.
     ASSERT_STREQ( "Games", pResult1 ) << "Could not find character.";
     ASSERT_EQ( 0, pResult2 ) << "Should not have found character,";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -316,6 +354,8 @@ TEST( PlatformStringTests, dStrspnTest )
 
     // Check results.
     ASSERT_EQ( 6, result ) << "Invalid index for string find.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -329,6 +369,8 @@ TEST( PlatformStringTests, dStrcspnTest )
 
     // Check results.
     ASSERT_EQ( 6, result ) << "Invalid index for string find.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -343,6 +385,8 @@ TEST( PlatformStringTests, dStrstrTest )
 
     // Check results.
     ASSERT_STREQ( "Games", pResult ) << "Could not find string.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -357,6 +401,8 @@ TEST( PlatformStringTests, dStrstrCONSTTest )
 
     // Check results.
     ASSERT_STREQ( "Games", pResult ) << "Could not find string.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -381,6 +427,8 @@ TEST( PlatformStringTests, dStrtokTest )
     ASSERT_STREQ( "Richard", pResult4 ) << "Token find is incorrect.";
     ASSERT_STREQ( "Ron", pResult5 ) << "Token find is incorrect.";
     ASSERT_EQ( 0, pResult6 ) << "Token find is incorrect.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -395,6 +443,8 @@ TEST( PlatformStringTests, dStrrevTest )
     // Check results.
     ASSERT_STREQ( "semaGegaraG", destination ) << "String reverse is incorrect.";
     ASSERT_EQ( 5, result ) << "String reverse is incorrect.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -417,6 +467,8 @@ TEST( PlatformStringTests, dAtoiTest )
     ASSERT_EQ( -16384, result2 ) << "Conversion incorrect.";
     ASSERT_EQ( 256, result3 ) << "Conversion incorrect.";
     ASSERT_EQ( -256, result4 ) << "Conversion incorrect.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -439,6 +491,8 @@ TEST( PlatformStringTests, dAtofTest )
     ASSERT_EQ( -123.45f, result2 ) << "Conversion incorrect.";
     ASSERT_EQ( 256.0f, result3 ) << "Conversion incorrect.";
     ASSERT_EQ( -256.0f, result4 ) << "Conversion incorrect.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -470,6 +524,8 @@ TEST( PlatformStringTests, dAtobTest )
     ASSERT_EQ( true, result5 ) << "Conversion incorrect.";
     ASSERT_EQ( false, result6 ) << "Conversion incorrect.";
     ASSERT_EQ( false, result7 ) << "Conversion incorrect.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -496,6 +552,8 @@ TEST( PlatformStringTests, dItoaTest )
     ASSERT_EQ( 5+1, result2 ) << "Conversion incorrect.";
     ASSERT_EQ( 3, result3 ) << "Conversion incorrect.";
     ASSERT_EQ( 3+1, result4 ) << "Conversion incorrect.";
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -518,6 +576,8 @@ TEST( PlatformStringTests, dIsalnumTest )
     {
         ASSERT_EQ( false, dIsalnum(source2[index]) );
     }
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -548,6 +608,8 @@ TEST( PlatformStringTests, dIsalphaTest )
     {
         ASSERT_EQ( false, dIsalpha(source3[index]) );
     }
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -578,6 +640,8 @@ TEST( PlatformStringTests, dIsdigitTest )
     {
         ASSERT_EQ( false, dIsdigit(source3[index]) );
     }
+
+    SUCCEED();
 }
 
 //-----------------------------------------------------------------------------
@@ -608,5 +672,7 @@ TEST( PlatformStringTests, dIsspaceTest )
     {
         ASSERT_EQ( false, dIsspace(source3[index]) );
     }
+
+    SUCCEED();
 }
 #endif // TORQUE_SHIPPING

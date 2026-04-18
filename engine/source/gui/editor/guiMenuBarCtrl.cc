@@ -137,9 +137,7 @@ void GuiMenuBarCtrl::onChildRemoved(SimObject *child)
 
 void GuiMenuBarCtrl::calculateMenus()
 {
-	Point2I zero = mBounds.point.Zero;
-	Point2I extent = getExtent();
-	RectI innerRect = getInnerRect(zero, extent, NormalState, mProfile);
+	RectI innerRect = getInnerRect();
 	iterator i;
 	S32 length = 0;
 	for (i = begin(); i != end(); i++)
@@ -311,13 +309,28 @@ void GuiMenuBarCtrl::ApplyMenuSettings()
 	for (i = begin(); i != end(); i++)
 	{
 		GuiMenuItemCtrl *ctrl = static_cast<GuiMenuItemCtrl *>(*i);
-		if (ctrl->isVisible() && ctrl->isActive() && ctrl->mHasGoodChildren)
-		{
-			ctrl->ApplyMenuSettings();
-		}
+		ctrl->ApplyMenuSettings();
 		ctrl->setControlProfile(mMenuProfile);
 	}
 	setUpdate();
+}
+
+void GuiMenuBarCtrl::setMenuActive(const char* name, bool isActive)
+{
+	iterator i;
+	for (i = begin(); i != end(); i++)
+	{
+		GuiMenuItemCtrl* ctrl = static_cast<GuiMenuItemCtrl*>(*i);
+		StringTableEntry ctrlName = StringTable->insert(ctrl->getText(), true);
+		StringTableEntry target = StringTable->insert(name, true);
+		if (ctrlName == target)
+		{
+			ctrl->setActive(isActive);
+		}
+		ctrl->setMenuActive(target, isActive);
+		ctrl->ApplyMenuSettings();
+		ctrl->setControlProfile(mMenuProfile);
+	}
 }
 
 void GuiMenuBarCtrl::acceleratorKeyPress(U32 index)
@@ -705,6 +718,8 @@ void GuiMenuItemCtrl::onChildAdded(GuiControl *child)
 		if(mScroll == NULL)
 		{
 			mScroll = new GuiScrollCtrl();
+			mScroll->setField("horizSizing","right");
+			mScroll->setField("vertSizing","bottom");
 			AssertFatal(mScroll, "GuiMenuItemCtrl::onChildAdded Failed to initialize GuiScrollCtrl!");
 		}
 
@@ -792,10 +807,7 @@ void GuiMenuItemCtrl::ApplyMenuSettings()
 	for (i = begin(); i != end(); i++)
 	{
 		GuiMenuItemCtrl *ctrl = static_cast<GuiMenuItemCtrl *>(*i);
-		if (ctrl->isVisible() && ctrl->isActive() && ctrl->mHasGoodChildren)
-		{
-			ctrl->ApplyMenuSettings();
-		}
+		ctrl->ApplyMenuSettings();
 	}
 	setControlProfile(mMenuBar->mMenuItemProfile);
 }
@@ -1006,6 +1018,21 @@ bool GuiMenuItemCtrl::onKeyDown(const GuiEvent &event)
 			mList->processMenuItem(mList->mHoveredItem);
 		}
 		return true;
+	}
+}
+
+void GuiMenuItemCtrl::setMenuActive(StringTableEntry name, bool isActive)
+{
+	iterator i;
+	for (i = begin(); i != end(); i++)
+	{
+		GuiMenuItemCtrl* ctrl = static_cast<GuiMenuItemCtrl*>(*i);
+		StringTableEntry ctrlName = StringTable->insert(ctrl->getText(), true);
+		if (ctrlName == name)
+		{
+			ctrl->setActive(isActive);
+		}
+		ctrl->setMenuActive(name, isActive);
 	}
 }
 #pragma endregion

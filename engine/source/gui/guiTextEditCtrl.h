@@ -164,6 +164,7 @@ protected:
    virtual bool handleKeyDownWithAlt(const GuiEvent& event);
    virtual bool handleKeyDownWithNoModifier(const GuiEvent& event);
    virtual bool handleCharacterInput(const GuiEvent& event);
+   virtual bool handleEscapeKey();
    virtual bool handleEnterKey();
    virtual bool handleArrowKey(GuiDirection direction);
    virtual bool handleShiftArrowKey(GuiDirection direction);
@@ -214,6 +215,8 @@ public:
    void onPaste();
    void onUndo();
 
+   StringTableEntry mTextOnFocus;
+   void onFocus(bool foundFirstResponder);
    virtual void setFirstResponder();
    virtual void onLoseFirstResponder();
 
@@ -276,6 +279,10 @@ public:
 	void processScrollVelocity();
 
 	enum Constants { MAX_STRING_LENGTH = 1024 };
+
+	static bool writeSinkAllKeyEventsFn(void* obj, StringTableEntry pFieldName) { return static_cast<GuiTextEditCtrl*>(obj)->getSinkAllKeyEvents(); }
+	static bool writePasswordFn(void* obj, StringTableEntry pFieldName) { return static_cast<GuiTextEditCtrl*>(obj)->getIsPassword(); }
+	static bool writeReturnCausesTabFn(void* obj, StringTableEntry pFieldName) { return static_cast<GuiTextEditCtrl*>(obj)->getReturnCausesTab(); }
 
 private:
 	bool tabNext();

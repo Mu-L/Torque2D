@@ -49,7 +49,8 @@ function ScreenFade::swapCanvas(%this, %content, %color, %time)
 
 //Fades the screen to color and then puts the dialog on top of it.
 //Color and time are optional.
-//When your dialog closes, call %this.post("dialogClose"); to inform ScreenFade where %this is the same object passed to openDialog().
+//When your dialog closes, call %this.postEvent("dialogClose"); to inform ScreenFade where %this is the same object passed to openDialog().
+//Or call %this.postEvent("dialogSwap", %dialog); to swap the dialog for another. Then the new dialog will have to post "dialogClose" when it closes.
 //ScreenFade will post events: onOpenComplete() and onCloseComplete().
 function ScreenFade::openDialog(%this, %dialog, %color, %time)
 {

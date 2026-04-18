@@ -26,6 +26,8 @@
 #include "gui/guiCanvas.h"
 #include "gui/containers/guiWindowCtrl.h"
 #include "gui/guiDefaultControlRender.h"
+#include "gui/containers/guiFrameSetCtrl.h"
+#include "gui/containers/guiTabPageCtrl.h"
 
 #include "guiWindowCtrl_ScriptBinding.h"
 
@@ -43,7 +45,6 @@ GuiWindowCtrl::GuiWindowCtrl(void)
    mTitleHeight = 20;
    mResizeRightWidth = 10;
    mResizeBottomHeight = 10;
-   mIsContainer = true;
    mDepressed = false;
    curHitRegion = None;
    mActive = true;
@@ -77,12 +78,15 @@ GuiWindowCtrl::GuiWindowCtrl(void)
    mLeftRightCursor = NULL;
    mUpDownCursor = NULL;
    mNWSECursor = NULL;
+
+   mPageDocked = false;
 }
 
 void GuiWindowCtrl::initPersistFields()
 {
    Parent::initPersistFields();
 
+   addGroup("GuiWindowCtrl");
    addField("resizeWidth",       TypeBool,         Offset(mResizeWidth, GuiWindowCtrl));
    addField("resizeHeight",      TypeBool,         Offset(mResizeHeight, GuiWindowCtrl));
    addField("canMove",           TypeBool,         Offset(mCanMove, GuiWindowCtrl));
@@ -99,6 +103,7 @@ void GuiWindowCtrl::initPersistFields()
    addField("leftRightCursor", TypeGuiCursor, Offset(mLeftRightCursor, GuiWindowCtrl));
    addField("upDownCursor", TypeGuiCursor, Offset(mUpDownCursor, GuiWindowCtrl));
    addField("nWSECursor", TypeGuiCursor, Offset(mNWSECursor, GuiWindowCtrl));
+   endGroup("GuiWindowCtrl");
 }
 
 bool GuiWindowCtrl::isMinimized(S32 &index)
@@ -172,8 +177,55 @@ GuiControl* GuiWindowCtrl::findHitControl(const Point2I &pt, S32 initialLayer)
       return this;
 }
 
+void GuiWindowCtrl::dockToPage()
+{
+	mPageDocked = true;
+	setUpdate();
+	Point2I newExtent = mBounds.extent;
+	Point2I oldExtent = Point2I(newExtent.x, newExtent.y - mTitleHeight);
+	iterator i;
+	for (i = begin(); i != end(); i++)
+	{
+		GuiControl* ctrl = static_cast<GuiControl*>(*i);
+		ctrl->parentResized(oldExtent - (ctrl->mRenderInsetLT + ctrl->mRenderInsetRB), newExtent - (ctrl->mRenderInsetLT + ctrl->mRenderInsetRB));
+	}
+}
+
+void GuiWindowCtrl::undockFromPage()
+{
+	mPageDocked = false;
+	setUpdate();
+	Point2I newExtent = mBounds.extent;
+	Point2I oldExtent = Point2I(newExtent.x, newExtent.y + mTitleHeight);
+	iterator i;
+	for (i = begin(); i != end(); i++)
+	{
+		GuiControl* ctrl = static_cast<GuiControl*>(*i);
+		ctrl->parentResized(oldExtent - (ctrl->mRenderInsetLT + ctrl->mRenderInsetRB), newExtent - (ctrl->mRenderInsetLT + ctrl->mRenderInsetRB));
+	}
+}
+
 void GuiWindowCtrl::resize(const Point2I &newPosition, const Point2I &newExtent)
 {
+	GuiFrameSetCtrl* frameSet = dynamic_cast<GuiFrameSetCtrl*>(getParent());
+	GuiTabPageCtrl* page = dynamic_cast<GuiTabPageCtrl*>(getParent());
+	GuiTabBookCtrl* book = nullptr;
+	if (page)
+	{
+		book = dynamic_cast<GuiTabBookCtrl*>(page->getParent());
+	}
+	if ((frameSet || (book && book->mIsFrameSetGenerated)) && !mMinimized && !mMaximized)
+	{
+		mStandardBounds = mBounds;
+		mMaximized = true;
+	}
+
+	if (page && mPageDocked)
+	{
+		Parent::resize(Point2I::Zero, page->getExtent());
+		return;
+	}
+
    Parent::resize(newPosition, newExtent);
 }
 
@@ -186,6 +238,7 @@ void GuiWindowCtrl::onTouchMove(const GuiEvent &event)
 void GuiWindowCtrl::onTouchLeave(const GuiEvent &event)
 {
 	curHitRegion = None;
+	Parent::onTouchLeave(event);
 }
 
 void GuiWindowCtrl::onTouchDown(const GuiEvent &event)
@@ -199,7 +252,7 @@ void GuiWindowCtrl::onTouchDown(const GuiEvent &event)
    curHitRegion = findHitRegion(localPoint);
    mDepressed = true;
 
-   //select this window - move it to the front, and set the first responder
+   //select this window - move it to the front
    selectWindow();
 
    //if we clicked within the title bar
@@ -253,6 +306,7 @@ void GuiWindowCtrl::onTouchDragged(const GuiEvent &event)
 {
    GuiControl *parent = getParent();
    GuiCanvas *root = getRoot();
+   GuiFrameSetCtrl* frameSet = dynamic_cast<GuiFrameSetCtrl*>(getParent());
    if (! root) return;
 
    curHitRegion = findHitRegion(globalToLocalCoord(event.mousePoint));
@@ -288,6 +342,36 @@ void GuiWindowCtrl::onTouchDragged(const GuiEvent &event)
       }
    }
 
+   if (mMouseMovingWin && frameSet)
+   {
+		const S32 dragDist = 20;
+	   if (mAbs(deltaMousePosition.x) > dragDist || mAbs(deltaMousePosition.y) > dragDist)
+	   {
+			newPosition = parent->localToGlobalCoord(newPosition);
+
+		   //Make the window the front-most child in the grandparent
+		   GuiControl* grandparent = frameSet->getParent();
+		   grandparent->addObject(this);
+		   grandparent->pushObjectToBack(this);
+		   mouseLock();
+
+		   if (mAbs(newPosition.x - mMouseDownPosition.x) > mStandardBounds.extent.x)
+		   {
+			   mMouseDownPosition.x = mOrigBounds.point.x + (mStandardBounds.extent.x / 2);
+			   deltaMousePosition.x = event.mousePoint.x - mMouseDownPosition.x;
+			   newPosition.x = getMax(0, getMin(parent->mBounds.extent.x - mBounds.extent.x, mOrigBounds.point.x + deltaMousePosition.x));
+		   }
+
+		   newPosition = grandparent->globalToLocalCoord(newPosition);
+		   newExtent = mStandardBounds.extent;
+		   mMaximized = false;
+	   }
+	   else
+	   {
+			update = false;
+	   }
+   }
+
    if (update)
    {
       Point2I pos = parent->localToGlobalCoord(getPosition());
@@ -309,12 +393,18 @@ void GuiWindowCtrl::onTouchUp(const GuiEvent &event)
    mouseUnlock();
    setUpdate();
 
-   MoveComplete();
-   ResizeComplete();
-
    GuiControl *parent = getParent();
    if (! parent)
       return;
+
+   GuiFrameSetCtrl* backFrameSet = dynamic_cast<GuiFrameSetCtrl*>((*parent)[0]);
+   if (mMouseMovingWin && backFrameSet)
+   {
+		backFrameSet->handleDropButtons(this);
+   }
+
+   MoveComplete();
+   ResizeComplete();
 
    //see if we take an action
    Point2I localPoint = globalToLocalCoord(event.mousePoint);
@@ -329,17 +419,7 @@ void GuiWindowCtrl::onTouchUp(const GuiEvent &event)
    {
       if (mMaximized)
       {
-         //resize to the previous position and extent, bounded by the parent
-         resize(Point2I(getMax(0, getMin(parent->mBounds.extent.x - mStandardBounds.extent.x, mStandardBounds.point.x)),
-                        getMax(0, getMin(parent->mBounds.extent.y - mStandardBounds.extent.y, mStandardBounds.point.y))),
-                        mStandardBounds.extent);
-         //set the flag
-         mMaximized = false;
-
-		 if (isMethod("onRestore"))
-		 {
-			 Con::executef(this, 1, "onRestore");
-		 }
+         restore();
       }
       else
       {
@@ -369,17 +449,7 @@ void GuiWindowCtrl::onTouchUp(const GuiEvent &event)
    {
       if (mMinimized)
       {
-         //resize to the previous position and extent, bounded by the parent
-         resize(Point2I(getMax(0, getMin(parent->mBounds.extent.x - mStandardBounds.extent.x, mStandardBounds.point.x)),
-                        getMax(0, getMin(parent->mBounds.extent.y - mStandardBounds.extent.y, mStandardBounds.point.y))),
-                        mStandardBounds.extent);
-         //set the flag
-         mMinimized = false;
-
-		 if (isMethod("onRestore"))
-		 {
-			 Con::executef(this, 1, "onRestore");
-		 }
+         restore();
       }
       else
       {
@@ -447,6 +517,29 @@ void GuiWindowCtrl::onTouchUp(const GuiEvent &event)
       }
    }
 
+}
+
+void GuiWindowCtrl::restore()
+{
+	GuiControl* parent = getParent();
+	if (!parent)
+	{
+		return;
+	}
+
+	//resize to the previous position and extent, bounded by the parent
+	resize(Point2I(getMax(0, getMin(parent->mBounds.extent.x - mStandardBounds.extent.x, mStandardBounds.point.x)),
+	getMax(0, getMin(parent->mBounds.extent.y - mStandardBounds.extent.y, mStandardBounds.point.y))),
+	mStandardBounds.extent);
+
+	//set the flags
+	mMinimized = false;
+	mMaximized = false;
+
+	if (isMethod("onRestore"))
+	{
+		Con::executef(this, 1, "onRestore");
+	}
 }
 
 GuiControl *GuiWindowCtrl::findNextTabable(GuiControl *curResponder, bool firstCall)
@@ -577,30 +670,25 @@ bool GuiWindowCtrl::onKeyDown(const GuiEvent &event)
    return Parent::onKeyDown(event);
 }
 
-void GuiWindowCtrl::onFocus()
+void GuiWindowCtrl::onFocus(bool foundFirstResponder)
 {
 	//bubble the focus up
 	GuiControl *parent = getParent();
 	if (parent)
 	{
 		parent->pushObjectToBack(this);
-		parent->onFocus();
+		parent->onFocus(foundFirstResponder);
 	}
-
-	setFirstResponder(mFirstResponder);
 }
 
 void GuiWindowCtrl::selectWindow(void)
 {
-   //first make sure this window is the front most of its siblings
+   //make sure this window is the front most of its siblings
    GuiControl *parent = getParent();
    if (parent)
    {
       parent->pushObjectToBack(this);
    }
-
-   //also set the first responder to be the one within this window
-   setFirstResponder(mFirstResponder);
 }
 
 void GuiWindowCtrl::ResizeComplete()
@@ -646,33 +734,37 @@ void GuiWindowCtrl::onRender(Point2I offset, const RectI &updateRect)
 	}
 
 	//Render the title bar
-   Point2I extent = Point2I(mBounds.extent.x, mTitleHeight);
-	RectI ctrlRectTitle = applyMargins(offset, extent, currentState, mProfile);
-	if (!ctrlRectTitle.isValidRect())
+	if(!mPageDocked)
 	{
-		return;
-	}
-	mTitleBar.set(Point2I(ctrlRectTitle.point.x - offset.x, ctrlRectTitle.point.y - offset.y), ctrlRectTitle.extent);
-	renderUniversalRect(ctrlRectTitle, mProfile, currentState);
+		Point2I extent = Point2I(mBounds.extent.x, mTitleHeight);
+		RectI ctrlRectTitle = applyMargins(offset, extent, currentState, mProfile);
+		if (!ctrlRectTitle.isValidRect())
+		{
+			return;
+		}
+		mTitleBar.set(Point2I(ctrlRectTitle.point.x - offset.x, ctrlRectTitle.point.y - offset.y), ctrlRectTitle.extent);
+		renderUniversalRect(ctrlRectTitle, mProfile, currentState);
 
-	//Render Text and buttons
-	dglSetBitmapModulation(getFontColor(mProfile, currentState));
-	RectI fillRectTitle = applyBorders(ctrlRectTitle.point, ctrlRectTitle.extent, currentState, mProfile);
-	RectI contentRectTitle = applyPadding(fillRectTitle.point, fillRectTitle.extent, currentState, mProfile);
+		//Render Text and buttons
+		dglSetBitmapModulation(getFontColor(mProfile, currentState));
+		RectI fillRectTitle = applyBorders(ctrlRectTitle.point, ctrlRectTitle.extent, currentState, mProfile);
+		RectI contentRectTitle = applyPadding(fillRectTitle.point, fillRectTitle.extent, currentState, mProfile);
 
-	if (contentRectTitle.isValidRect())
-	{
-		RectI textRect = renderButtons(offset, contentRectTitle);
-		renderText(textRect.point, textRect.extent, mText, mProfile);
+		if (contentRectTitle.isValidRect())
+		{
+			RectI textRect = renderButtons(offset, contentRectTitle);
+			renderText(textRect.point, textRect.extent, mText, mProfile);
+		}
 	}
 
 	//Render window contents
 	if (!mMinimized)
 	{
 		currentState = currentState != SelectedState ? NormalState : SelectedState;
-      Point2I offsetWithTileHeight = Point2I(offset.x, offset.y + mTitleHeight);
-      Point2I boundsExtentMinusTileHeight = Point2I(mBounds.extent.x, mBounds.extent.y - mTitleHeight);
-		RectI ctrlRectWindow = applyMargins(offsetWithTileHeight, boundsExtentMinusTileHeight, currentState, mContentProfile);
+		S32 titleHeight = mPageDocked ? 0 : mTitleHeight;
+		Point2I offsetWithTitleHeight = Point2I(offset.x, offset.y + titleHeight);
+		Point2I boundsExtentMinusTitleHeight = Point2I(mBounds.extent.x, mBounds.extent.y - titleHeight);
+		RectI ctrlRectWindow = applyMargins(offsetWithTitleHeight, boundsExtentMinusTitleHeight, currentState, mContentProfile);
 		if (!ctrlRectWindow.isValidRect())
 		{
 			return;
@@ -688,11 +780,25 @@ void GuiWindowCtrl::onRender(Point2I offset, const RectI &updateRect)
 			renderChildControls(offset, contentRectWindow, updateRect);
 		}
 	}
+
+	//Render FrameSet Drop Options
+	GuiControl* parent = getParent();
+	if(!parent)
+	{
+		return;
+	}
+	GuiFrameSetCtrl* backFrameSet = dynamic_cast<GuiFrameSetCtrl*>((*parent)[0]);
+	if (mMouseMovingWin && backFrameSet)
+	{
+		backFrameSet->renderDropOptions(this);
+	}
 }
 
 RectI GuiWindowCtrl::renderButtons(const Point2I &offset, const RectI &contentRect)
 {
 	S32 distanceFromEdge = 0;
+
+	GuiFrameSetCtrl* frameSet = dynamic_cast<GuiFrameSetCtrl*>(getParent());
 
 	if (mCanClose)
 	{
@@ -709,7 +815,7 @@ RectI GuiWindowCtrl::renderButtons(const Point2I &offset, const RectI &contentRe
 		S32 rightSize = (rightProfile) ? rightProfile->getMargin(state) : 0;
 		distanceFromEdge += rightSize;
 	}
-	if (mCanMaximize)
+	if (mCanMaximize && !frameSet)
 	{
 		GuiControlState state = getRegionCurrentState(Region::MaxButton);
 		RectI content = renderButton(contentRect, distanceFromEdge, state, mMaxButtonProfile, Icon::Max);
@@ -724,7 +830,7 @@ RectI GuiWindowCtrl::renderButtons(const Point2I &offset, const RectI &contentRe
 		S32 rightSize = (rightProfile) ? rightProfile->getMargin(state) : 0;
 		distanceFromEdge += rightSize;
 	}
-	if (mCanMinimize)
+	if (mCanMinimize && !frameSet)
 	{
 		GuiControlState state = getRegionCurrentState(Region::MinButton);
 		RectI content = renderButton(contentRect, distanceFromEdge, state, mMinButtonProfile, Icon::Min);
@@ -843,6 +949,12 @@ RectI GuiWindowCtrl::renderButton(const RectI &contentRect, S32 distanceFromEdge
 	return finalButtonContent;
 }
 
+RectI GuiWindowCtrl::getInnerRect(Point2I& offset, Point2I& extent, GuiControlState currentState, GuiControlProfile* profile)
+{
+	Point2I contentExtent = Point2I(extent.x, extent.y - mTitleHeight);
+	return Parent::getInnerRect(offset, contentExtent, currentState, mContentProfile);
+}
+
 GuiControlState GuiWindowCtrl::getRegionCurrentState(GuiWindowCtrl::Region region)
 {
 	GuiControlState currentState = GuiControlState::NormalState;
@@ -869,6 +981,11 @@ void GuiWindowCtrl::getCursor(GuiCursor *&cursor, bool &showCursor, const GuiEve
 	if (!parent)
 	{
 		return;
+	}
+	GuiFrameSetCtrl* frame = dynamic_cast<GuiFrameSetCtrl*>(parent);
+	if (frame)
+	{
+		return;//Resizing doesn't happen when in a frame set.
 	}
 	Point2I offset = getParent()->localToGlobalCoord(Point2I(0,0));
 	RectI rightRect = RectI( ( ( winRect.extent.x + winRect.point.x ) - mResizeRightWidth + offset.x), winRect.point.y + mTitleHeight + offset.y, mResizeRightWidth, winRect.extent.y );

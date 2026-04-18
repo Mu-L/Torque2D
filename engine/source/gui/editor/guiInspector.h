@@ -86,6 +86,7 @@ private:
 public:
    // Members
    Vector<GuiInspectorGroup*>    mGroups;
+   Vector<StringTableEntry>      mOpenGroupList;
    SimObjectPtr<SimObject>       mTarget;
 
    GuiInspector();
@@ -104,20 +105,25 @@ public:
    inline bool hideField(const char* fieldName) { return std::find(mHiddenFieldList.begin(), mHiddenFieldList.end(), fieldName) != mHiddenFieldList.end(); };
    inline void clearHiddenField() { mHiddenFieldList.clear(); };
    inline void addHiddenField(const char* fieldName) { mHiddenFieldList.push_back(fieldName); };
+   void checkOpenGroupList(GuiInspectorGroup* group);
 
-   GuiControlProfile *mGroupPanelProfile;
-   GuiControlProfile *mGroupGridProfile;
-   GuiControlProfile *mLabelProfile;
-   GuiControlProfile *mTextEditProfile;
-   GuiControlProfile *mDropDownProfile;
-   GuiControlProfile *mDropDownItemProfile;
-   GuiControlProfile *mScrollProfile;
-   GuiControlProfile *mBackgroundProfile;
-   GuiControlProfile *mThumbProfile;
-   GuiControlProfile *mArrowProfile;
-   GuiControlProfile *mTrackProfile;
-   GuiControlProfile *mCheckboxProfile;
-   GuiControlProfile *mButtonProfile;
+   GuiControlProfile* mGroupPanelProfile;
+   GuiControlProfile* mGroupGridProfile;
+   GuiControlProfile* mLabelProfile;
+   GuiControlProfile* mTextEditProfile;
+   GuiControlProfile* mDropDownProfile;
+   GuiControlProfile* mDropDownItemProfile;
+   GuiControlProfile* mScrollProfile;
+   GuiControlProfile* mBackgroundProfile;
+   GuiControlProfile* mThumbProfile;
+   GuiControlProfile* mArrowProfile;
+   GuiControlProfile* mTrackProfile;
+   GuiControlProfile* mCheckboxProfile;
+   GuiControlProfile* mButtonProfile;
+   GuiControlProfile* mColorPopupProfile;
+   GuiControlProfile* mColorPopupPanelProfile;
+   GuiControlProfile* mColorPopupPickerProfile;
+   GuiControlProfile* mColorPopupSelectorProfile;
 
    bool onWake();
    void onSleep();

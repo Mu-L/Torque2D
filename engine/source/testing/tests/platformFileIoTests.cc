@@ -119,6 +119,8 @@ TEST( PlatformFileIOTests, FileWriteRead )
 
     // Check the file has been deleted.
     ASSERT_TRUE( Platform::fileDelete( PLATFORM_UNITTEST_FILEIO_FILE ) );
+
+	SUCCEED();
 }
 //-----------------------------------------------------------------------------
 

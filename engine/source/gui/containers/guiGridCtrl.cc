@@ -56,7 +56,6 @@ IMPLEMENT_CONOBJECT(GuiGridCtrl);
 
 GuiGridCtrl::GuiGridCtrl()
 {
-	mIsContainer = true;
 	mCellModeX = CellMode::Absolute;
 	mCellModeY = CellMode::Absolute;
 	mCellSizeX = 20;
@@ -68,6 +67,7 @@ GuiGridCtrl::GuiGridCtrl()
 	mOrderMode = OrderMode::LRTB;
 	mIsExtentDynamic = true;
    setField("profile", "GuiDefaultProfile");
+   mResizeGuard = false;
 }
 
 //------------------------------------------------------------------------------
@@ -117,55 +117,65 @@ void GuiGridCtrl::inspectPostApply()
 
 void GuiGridCtrl::resize(const Point2I &newPosition, const Point2I &newExtent)
 {
-	Point2I actualNewExtent = Point2I(getMax(mMinExtent.x, newExtent.x),
-		getMax(mMinExtent.y, newExtent.y));
-
-	//call set update both before and after
-	setUpdate();
-
-	Point2I zero = mBounds.point.Zero;
-	RectI innerRect = getInnerRect(zero, actualNewExtent, NormalState, mProfile);
-	if (!innerRect.isValidRect() && !mIsExtentDynamic)
+	if (!mResizeGuard)//Prevent circular resizing
 	{
-		return;
-	}
+		mResizeGuard = true;
+		Point2I actualNewExtent = Point2I(getMax(mMinExtent.x, newExtent.x),
+			getMax(mMinExtent.y, newExtent.y));
+
+		//call set update both before and after
+		setUpdate();
+
+		Point2I zero = mBounds.point.Zero;
+		RectI innerRect = getInnerRect(zero, actualNewExtent, NormalState, mProfile);
+		if (!innerRect.isValidRect() && !mIsExtentDynamic)
+		{
+			return;
+		}
 		
-	AdjustGrid(innerRect.extent);
+		AdjustGrid(innerRect.extent);
 
-	iterator i;
-	U16 cellNumber = 0;
-	mChainNumber = 0;
-	mRunningChainHeight = 0;
-	mCurrentChainHeight = 0;
-	for (i = begin(); i != end(); i++, cellNumber++)
-	{
-		GuiControl *ctrl = static_cast<GuiControl *>(*i);
-		Point2I cellPos = getCellPosition(cellNumber, innerRect.extent, ctrl);
-		Point2I cellExt = getCellExtent(ctrl);
-		ctrl->resize(cellPos, cellExt);
-	}
-	mRunningChainHeight += mCurrentChainHeight;
-
-	Point2I actualNewPosition = Point2I(newPosition);
-	if(mIsExtentDynamic)
-	{
-		if (IsVertical())
+		iterator i;
+		U16 cellNumber = 0;
+		mChainNumber = 0;
+		mRunningChainHeight = 0;
+		mCurrentChainHeight = 0;
+		for (i = begin(); i != end(); i++, cellNumber++)
 		{
-			innerRect.extent.y = mRunningChainHeight;
+			GuiControl *ctrl = static_cast<GuiControl *>(*i);
+			Point2I cellPos = getCellPosition(cellNumber, innerRect.extent, ctrl);
+			Point2I cellExt = getCellExtent(ctrl);
+			ctrl->resize(cellPos, cellExt);
 		}
-		else
+		mRunningChainHeight += mCurrentChainHeight;
+
+		Point2I actualNewPosition = Point2I(newPosition);
+		if(mIsExtentDynamic)
 		{
-			innerRect.extent.x = mRunningChainHeight;
+			if(isEditMode())
+			{
+				mRunningChainHeight += 20; 
+			}
+			if (IsVertical())
+			{
+				innerRect.extent.y = mRunningChainHeight;
+			}
+			else
+			{
+				innerRect.extent.x = mRunningChainHeight;
+			}
+			actualNewExtent = getOuterExtent(innerRect.extent, NormalState, mProfile);
+
 		}
-		actualNewExtent = getOuterExtent(innerRect.extent, NormalState, mProfile);
+
+		mBounds.set(actualNewPosition, actualNewExtent);
+
+		GuiControl *parent = getParent();
+		if (parent)
+			parent->childResized(this);
+		setUpdate();
+		mResizeGuard = false;
 	}
-
-	mBounds.set(actualNewPosition, actualNewExtent);
-
-	GuiControl *parent = getParent();
-	if (parent)
-		parent->childResized(this);
-	setUpdate();
 }
 
 //------------------------------------------------------------------------------
@@ -319,23 +329,37 @@ Point2F GuiGridCtrl::GetGridItemHeight(const S32 totalArea, const S32 maxChainLe
 	return Point2F(1, 1);
 }
 
-void GuiGridCtrl::onChildAdded(GuiControl *child)
+void GuiGridCtrl::onChildAdded(GuiControl* child)
 {
 	//Ensure the child isn't positioned to the center
-	if (child->getHorizSizing() == horizResizeCenter)
-	{
-		child->setHorizSizing(horizResizeLeft);
-	}
-	if (child->getVertSizing() == vertResizeCenter)
-	{
-		child->setVertSizing(vertResizeTop);
-	}
+	child->preventResizeModeCenter();
+	child->preventResizeModeFill();
+	resize(getPosition(), getExtent());
+
+	Parent::onChildAdded(child);
+}
+
+void GuiGridCtrl::onChildRemoved(GuiControl* child)
+{
 	resize(getPosition(), getExtent());
 }
 
-void GuiGridCtrl::onChildRemoved(SimObject *child)
+void GuiGridCtrl::childResized(GuiControl* child)
 {
 	resize(getPosition(), getExtent());
+	Parent::childResized(child);
+}
+
+void GuiGridCtrl::childMoved(GuiControl* child)
+{
+	resize(getPosition(), getExtent());
+	Parent::childMoved(child);
+}
+
+void GuiGridCtrl::childrenReordered()
+{
+	resize(getPosition(), getExtent());
+	Parent::childrenReordered();
 }
 
 void GuiGridCtrl::setCellSize(F32 width, F32 height)
